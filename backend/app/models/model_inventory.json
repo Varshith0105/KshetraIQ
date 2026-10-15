@@ -1,0 +1,380 @@
+{
+  "inventory_version": "1.0.0",
+  "generated_at": "2026-10-15T23:08:00+05:30",
+  "workspace_root": "E:\\CapstoneProject",
+  "source_collections": [
+    "E:\\CapstoneProject\\Agriverse_Models",
+    "E:\\CapstoneProject\\capstone-final",
+    "E:\\CapstoneProject\\AgriVerse-AI"
+  ],
+  "models": [
+    {
+      "model_id": "crop-recommendation-v1",
+      "display_name": "Multi-Crop Agronomic Suitability Recommender",
+      "intended_task": "Multi-class crop suitability recommendation from 7 soil and climatic factors",
+      "source_collection": "Agriverse_Models",
+      "artifact_path": "Agriverse_Models/crop_recommendation_model.pkl",
+      "companion_artifacts": [
+        "Agriverse_Models/crop_feature_names.pkl"
+      ],
+      "training_notebook": "Agriverse_Models/Crop_Recommendation.ipynb",
+      "dataset_provenance": "Crop_recommendation.csv (2,200 records across 22 crops)",
+      "artifact_format": "pickle (joblib)",
+      "file_size_bytes": 7281161,
+      "algorithm": "RandomForestClassifier (scikit-learn)",
+      "input_contract": {
+        "features": ["N", "P", "K", "temperature", "humidity", "ph", "rainfall"],
+        "order": ["N", "P", "K", "temperature", "humidity", "ph", "rainfall"],
+        "units": {
+          "N": "kg/ha",
+          "P": "kg/ha",
+          "K": "kg/ha",
+          "temperature": "°C",
+          "humidity": "%",
+          "ph": "pH scale (0-14)",
+          "rainfall": "mm"
+        },
+        "preprocessing": "Raw numeric 2D array / DataFrame matching feature order"
+      },
+      "output_contract": {
+        "type": "probabilities_distribution",
+        "labels_count": 22,
+        "classes": [
+          "apple", "banana", "blackgram", "chickpea", "coconut", "coffee", "cotton",
+          "grapes", "jute", "kidneybeans", "lentil", "maize", "mango", "mothbeans",
+          "mungbean", "muskmelon", "orange", "papaya", "pigeonpeas", "pomegranate",
+          "rice", "watermelon"
+        ],
+        "interpretation": "Class probabilities across 22 crops; top candidates ranked with Telugu transliteration"
+      },
+      "runtime_requirements": {
+        "python": ">=3.11",
+        "libraries": ["scikit-learn>=1.6", "joblib>=1.4"],
+        "compatibility_patch": "app.core.unpickle_patch for Scikit-Learn 1.9+ _RemainderColsList shim"
+      },
+      "verification_status": "VERIFIED",
+      "api_endpoint": "POST /api/v1/assessments",
+      "blocker_reason": null
+    },
+    {
+      "model_id": "crop-yield-v1",
+      "display_name": "Crop Yield Forecaster",
+      "intended_task": "Agricultural harvest yield regression per hectare and total farm tonnage",
+      "source_collection": "Agriverse_Models",
+      "artifact_path": "Agriverse_Models/crop_yield_prediction_model.pkl",
+      "companion_artifacts": [
+        "Agriverse_Models/yield_feature_names.pkl"
+      ],
+      "training_notebook": "Agriverse_Models/Crop_Yield_Prediction.ipynb",
+      "dataset_provenance": "crop_yield.csv (historical district and state agronomic records across India)",
+      "artifact_format": "pickle (joblib)",
+      "file_size_bytes": 281180314,
+      "algorithm": "Pipeline(ColumnTransformer(OneHotEncoder) + RandomForestRegressor) (R^2 = 0.9802)",
+      "input_contract": {
+        "features": ["Crop", "Season", "State", "Crop_Year", "Area", "Annual_Rainfall", "Fertilizer", "Pesticide"],
+        "order": ["Crop", "Season", "State", "Crop_Year", "Area", "Annual_Rainfall", "Fertilizer", "Pesticide"],
+        "units": {
+          "Crop": "Categorical name (e.g. Rice, Maize, Wheat)",
+          "Season": "Categorical agronomic season (e.g. Kharif, Rabi, Whole Year)",
+          "State": "Categorical state name (e.g. Andhra Pradesh)",
+          "Crop_Year": "Calendar year (integer)",
+          "Area": "Hectares (ha)",
+          "Annual_Rainfall": "Millimeters (mm)",
+          "Fertilizer": "Kilograms (kg)",
+          "Pesticide": "Kilograms (kg)"
+        },
+        "preprocessing": "ColumnTransformer encoding categoricals with OneHotEncoder(handle_unknown='ignore')"
+      },
+      "output_contract": {
+        "type": "continuous_regression",
+        "target": "Yield",
+        "units": "Metric tonnes per hectare (tonnes/ha)",
+        "derived_metrics": "Total production harvest (tonnes) = Yield * Area"
+      },
+      "runtime_requirements": {
+        "python": ">=3.11",
+        "libraries": ["scikit-learn>=1.6", "joblib>=1.4"],
+        "compatibility_patch": "app.core.unpickle_patch for Scikit-Learn 1.9+"
+      },
+      "verification_status": "VERIFIED",
+      "api_endpoint": "POST /api/v1/predictions/crop-yield",
+      "blocker_reason": null
+    },
+    {
+      "model_id": "climate-scenario-v1",
+      "display_name": "Climate Shock Scenario Simulator",
+      "intended_task": "Drought stress scenario modeling evaluating yield resilience under -10% and -25% rainfall shocks",
+      "source_collection": "Agriverse_Models",
+      "artifact_path": "Agriverse_Models/crop_yield_prediction_model.pkl",
+      "companion_artifacts": [
+        "Agriverse_Models/climate_change_yield_model.pkl",
+        "Agriverse_Models/climate_change_feature_names.pkl",
+        "Agriverse_Models/climate_change_model_info.pkl"
+      ],
+      "training_notebook": "Agriverse_Models/Climate_Change_Scenario_Analysis.ipynb",
+      "dataset_provenance": "Indian agricultural climate variation records",
+      "artifact_format": "pickle (joblib)",
+      "file_size_bytes": 281180314,
+      "algorithm": "Predictive Stress Simulation Engine atop Verified Random Forest Regressor",
+      "input_contract": {
+        "features": ["Crop", "Season", "State", "Crop_Year", "Area", "Annual_Rainfall", "Fertilizer", "Pesticide"],
+        "order": ["Crop", "Season", "State", "Crop_Year", "Area", "Annual_Rainfall", "Fertilizer", "Pesticide"],
+        "units": {
+          "Area": "ha",
+          "Annual_Rainfall": "mm (baseline)",
+          "Fertilizer": "kg",
+          "Pesticide": "kg"
+        },
+        "preprocessing": "Evaluates baseline rainfall and simulated perturbations at -10% and -25%"
+      },
+      "output_contract": {
+        "type": "scenario_comparison",
+        "scenarios": ["baseline", "moderate_shock_minus_10pct", "severe_shock_minus_25pct"],
+        "units": "Yield (tonnes/ha), delta (%), and total farm harvest loss (tonnes)"
+      },
+      "runtime_requirements": {
+        "python": ">=3.11",
+        "libraries": ["scikit-learn>=1.6", "joblib>=1.4"]
+      },
+      "verification_status": "VERIFIED",
+      "api_endpoint": "POST /api/v1/predictions/climate-scenario",
+      "blocker_reason": null
+    },
+    {
+      "model_id": "sustainability-v1",
+      "display_name": "Agronomic Sustainability Scoring Engine",
+      "intended_task": "Composite farm sustainability assessment balancing input intensity with yield efficiency",
+      "source_collection": "Agriverse_Models",
+      "artifact_path": "Agriverse_Models/sustainability_score_config.pkl",
+      "companion_artifacts": [
+        "Agriverse_Models/sustainability_model_info.pkl"
+      ],
+      "training_notebook": "Agriverse_Models/Carbon_Footprint_Sustainability_Score.ipynb",
+      "dataset_provenance": "ICAR fertilizer/pesticide agronomic threshold standards",
+      "artifact_format": "pickle (joblib dictionary)",
+      "file_size_bytes": 256,
+      "algorithm": "Deterministic Multi-Factor Scoring Engine (0-100 scale)",
+      "input_contract": {
+        "features": ["nitrogen_kg_ha", "phosphorus_kg_ha", "potassium_kg_ha", "pesticide_kg_ha", "yield_tonnes_ha", "area_ha"],
+        "units": {
+          "chemical_inputs": "kg/ha",
+          "yield": "tonnes/ha",
+          "area": "ha"
+        },
+        "preprocessing": "Input intensity normalization vs ICAR reference thresholds"
+      },
+      "output_contract": {
+        "type": "bounded_score",
+        "range": "0 - 100",
+        "components": {
+          "fertilizer_score": "35% weight",
+          "pesticide_score": "30% weight",
+          "yield_efficiency": "35% weight"
+        },
+        "interpretation": "High Sustainability (>=70), Moderate (40-69), Low (<40)"
+      },
+      "runtime_requirements": {
+        "python": ">=3.11",
+        "libraries": ["python builtins"]
+      },
+      "verification_status": "VERIFIED",
+      "api_endpoint": "POST /api/v1/predictions/sustainability",
+      "blocker_reason": null
+    },
+    {
+      "model_id": "weather-risk-v1",
+      "display_name": "Agro-Climatic Weather Risk Classifier",
+      "intended_task": "Multi-tier meteorological risk classification with actionable field mitigations",
+      "source_collection": "Agriverse_Models",
+      "artifact_path": "Agriverse_Models/weather_risk_xgboost_model.pkl",
+      "companion_artifacts": [
+        "Agriverse_Models/weather_risk_label_encoder.pkl",
+        "Agriverse_Models/weather_risk_feature_names.pkl"
+      ],
+      "training_notebook": "Agriverse_Models/Weather_Risk_Prediction.ipynb",
+      "dataset_provenance": "india_weather_rainfall_data.xlsx",
+      "artifact_format": "pickle (joblib)",
+      "file_size_bytes": 6234109,
+      "algorithm": "XGBoost Multi-Class Classifier (xgboost==2.1.4)",
+      "input_contract": {
+        "features_count": 27,
+        "features": [
+          "month", "season", "state", "avg_temp", "min_temp", "max_temp",
+          "wind_speed", "air_pressure", "elevation", "latitude", "longitude",
+          "previous_rainfall", "previous_avg_temp", "previous_wind_speed", "previous_pressure",
+          "rainfall_3day", "rainfall_7day", "rainfall_3day_avg", "rainfall_7day_avg",
+          "temp_3day_avg", "temp_7day_avg", "pressure_change", "temp_change",
+          "wind_change", "day_of_year", "temp_range", "rainfall_intensity"
+        ],
+        "preprocessing": "ColumnTransformer encoding month/season/state with OneHotEncoder; remainder numeric passthrough"
+      },
+      "output_contract": {
+        "type": "categorical_risk_tier",
+        "classes": ["Extreme", "High", "Low", "Moderate"],
+        "interpretation": "Risk level with calibrated multi-class probability and agronomic protective actions"
+      },
+      "runtime_requirements": {
+        "python": ">=3.11",
+        "libraries": ["xgboost==2.1.4", "scikit-learn>=1.6", "joblib>=1.4"]
+      },
+      "verification_status": "VERIFIED",
+      "api_endpoint": "POST /api/v1/predictions/weather-risk",
+      "blocker_reason": null
+    },
+    {
+      "model_id": "market-price-v1",
+      "display_name": "APMC Mandi Price Forecasting Engine",
+      "intended_task": "Time-series commodity modal price forecasting and official mandi price adapter",
+      "source_collection": "Agriverse_Models",
+      "artifact_path": "Agriverse_Models/market_price_xgboost_model.pkl",
+      "companion_artifacts": [
+        "Agriverse_Models/market_price_trend_model.pkl",
+        "Agriverse_Models/market_price_feature_names.pkl",
+        "Agriverse_Models/market_price_model_info.pkl"
+      ],
+      "training_notebook": "Agriverse_Models/Market_Price_Forecasting.ipynb",
+      "dataset_provenance": "AGMARKNET historical prices (2003-2023) for Wheat at Varanasi(Grain) APMC mandi (5,651 observations)",
+      "artifact_format": "pickle (joblib)",
+      "file_size_bytes": 1250835,
+      "algorithm": "Hybrid Linear Trend (LinearRegression) + XGBoost Regressor for Residuals (R^2 = 0.8261, MAE = 55.89 Rs/Quintal)",
+      "input_contract": {
+        "commodity": "Wheat",
+        "market": "Varanasi(Grain)",
+        "features": ["res_lag_1", "res_lag_7", "res_lag_14", "res_lag_30", "res_rolling_7", "res_rolling_14", "month", "day_of_year"],
+        "units": "Price residuals in Rs./Quintal; month (1-12); day_of_year (1-366)"
+      },
+      "output_contract": {
+        "type": "continuous_price",
+        "unit": "Rs./Quintal",
+        "interpretation": "Predicted modal mandi price composed of baseline trend + XGBoost residual"
+      },
+      "runtime_requirements": {
+        "python": ">=3.11",
+        "libraries": ["xgboost==2.1.4", "scikit-learn>=1.6", "joblib>=1.4"]
+      },
+      "verification_status": "PARTIALLY_VERIFIED",
+      "api_endpoint": "POST /api/v1/predictions/market-price",
+      "blocker_reason": "Offline model contract verified for Varanasi Wheat. Live APMC feed requires registered data.gov.in API key; adapter supports verified offline baseline and live query when configured."
+    },
+    {
+      "model_id": "plant-disease-v1",
+      "display_name": "Plant Disease Vision Classifier",
+      "intended_task": "Deep learning convolutional neural network for screening 23 foliar plant diseases from RGB leaf images",
+      "source_collection": "capstone-final",
+      "artifact_path": "capstone-final/plant_disease.h5",
+      "companion_artifacts": [
+        "capstone-final/resnet50_confusion_matrix.png",
+        "capstone-final/resnet50_normalized_confusion_matrix.png"
+      ],
+      "training_notebook": "capstone-final/main_file_capstone(1).ipynb",
+      "dataset_provenance": "Kaggle karagwaanntreasure/plant-disease-detection (35,725 images across 23 classes, 80/20 train/val split)",
+      "artifact_format": "HDF5 (Keras 3.13.2 Sequential)",
+      "file_size_bytes": 97936084,
+      "algorithm": "ResNet50 Backbone (ImageNet weights, frozen) + GlobalAveragePooling2D + Dense(128, relu) + Dense(23, softmax)",
+      "input_contract": {
+        "dimensions": [160, 160, 3],
+        "color_channels": "RGB",
+        "supported_formats": ["image/jpeg", "image/png", "image/webp"],
+        "max_file_size_bytes": 10485760,
+        "preprocessing": "Resize to (160, 160), RGB float32 normalization"
+      },
+      "output_contract": {
+        "type": "softmax_probabilities",
+        "labels_count": 23,
+        "classes": [
+          "Apple___Apple_scab",
+          "Apple___Black_rot",
+          "Apple___Cedar_apple_rust",
+          "Apple___healthy",
+          "Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot",
+          "Corn_(maize)___Common_rust_",
+          "Corn_(maize)___Northern_Leaf_Blight",
+          "Corn_(maize)___healthy",
+          "Pepper__bell___Bacterial_spot",
+          "Pepper__bell___healthy",
+          "Potato___Early_blight",
+          "Potato___Late_blight",
+          "Potato___healthy",
+          "Tomato_Bacterial_spot",
+          "Tomato_Early_blight",
+          "Tomato_Late_blight",
+          "Tomato_Leaf_Mold",
+          "Tomato_Septoria_leaf_spot",
+          "Tomato_Spider_mites_Two_spotted_spider_mite",
+          "Tomato__Target_Spot",
+          "Tomato__Tomato_YellowLeaf__Curl_Virus",
+          "Tomato__Tomato_mosaic_virus",
+          "Tomato_healthy"
+        ],
+        "interpretation": "Top predicted disease class, confidence score, and agronomic screening disclaimer"
+      },
+      "runtime_requirements": {
+        "python": ">=3.11",
+        "libraries": ["tensorflow>=2.16", "keras>=3.0", "h5py>=3.11", "pillow>=10.0"]
+      },
+      "verification_status": "PARTIALLY_VERIFIED",
+      "api_endpoint": "POST /api/v1/predictions/plant-disease",
+      "blocker_reason": "Class labels (23) and architecture verified. Live inference requires Keras/TensorFlow runtime in active Python environment."
+    },
+    {
+      "model_id": "irrigation-rl-v1",
+      "display_name": "PPO Reinforcement Learning Irrigation Policy",
+      "intended_task": "Autonomous closed-loop soil moisture irrigation decision policy",
+      "source_collection": "Agriverse_Models",
+      "artifact_path": "Agriverse_Models/final_rl_irrigation_ppo_model.zip",
+      "companion_artifacts": [],
+      "training_notebook": "Agriverse_Models/RL_Irrigation_Optimization.ipynb",
+      "dataset_provenance": "150-row synthetic soil moisture / weather time series",
+      "artifact_format": "zip (Stable-Baselines3 PPO policy)",
+      "file_size_bytes": 0,
+      "algorithm": "Stable-Baselines3 PPO ActorCriticPolicy with Normalized Box(6,) observation space",
+      "input_contract": {
+        "features": ["CropType", "CropDays", "Soil Moisture", "Soil Temperature", "Temperature", "Humidity"],
+        "observation_space": "Box(low=0.0, high=1.0, shape=(6,))"
+      },
+      "output_contract": {
+        "action_space": "Discrete(2)",
+        "actions": {
+          "0": "No Irrigation",
+          "1": "Irrigation"
+        }
+      },
+      "runtime_requirements": {
+        "python": ">=3.11",
+        "libraries": ["stable-baselines3>=2.0", "gymnasium>=0.29"]
+      },
+      "verification_status": "UNAVAILABLE",
+      "api_endpoint": "None",
+      "blocker_reason": "Artifact final_rl_irrigation_ppo_model.zip was saved to Colab temporary filesystem (/content) but was never committed to repository. ICAR deterministic irrigation advisory active instead."
+    },
+    {
+      "model_id": "vegetation-ndvi-v1",
+      "display_name": "Sentinel-2 Satellite Vegetation Index (NDVI)",
+      "intended_task": "Remote sensing crop canopy vigor and health calculation",
+      "source_collection": "capstone-final",
+      "artifact_path": null,
+      "companion_artifacts": [],
+      "training_notebook": "capstone-final/satellitle_part.ipynb",
+      "dataset_provenance": "Google Earth Engine COPERNICUS/S2_SR_HARMONIZED (Sentinel-2 Level-2A surface reflectance)",
+      "artifact_format": "External Cloud API pipeline",
+      "file_size_bytes": 0,
+      "algorithm": "Normalized Difference Vegetation Index formula: (B8 - B4) / (B8 + B4)",
+      "input_contract": {
+        "coordinates": ["latitude", "longitude", "farm_polygon"],
+        "date_range": ["start_date", "end_date"]
+      },
+      "output_contract": {
+        "type": "raster_index",
+        "range": "-1.0 to +1.0",
+        "interpretation": "Vegetation vigor index: <0.2 barren, 0.2-0.5 moderate crop, >0.5 dense vegetation"
+      },
+      "runtime_requirements": {
+        "python": ">=3.11",
+        "libraries": ["earthengine-api>=0.1.300", "geemap>=0.30"]
+      },
+      "verification_status": "EXTERNAL_SERVICE_REQUIRED",
+      "api_endpoint": "None",
+      "blocker_reason": "Requires authorized Google Earth Engine service account credentials (EE_PROJECT_ID, EE_SERVICE_ACCOUNT_KEY)."
+    }
+  ]
+}

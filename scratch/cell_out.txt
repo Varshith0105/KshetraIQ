@@ -1,0 +1,326 @@
+
+==================== Cell 1 ====================
+!kaggle datasets download karagwaanntreasure/plant-disease-detection
+--- Output text ---
+Warning: Looks like you're using an outdated `kaggle` version (installed: 2.0.2), please consider upgrading to the latest version (2.2.2)
+Dataset URL: https://www.kaggle.com/datasets/karagwaanntreasure/plant-disease-detection
+License(s): MIT
+Downloading plant-disease-detection.zip to /content
+100% 534M/534M [00:28<00:00, 19.7MB/s]
+
+
+
+==================== Cell 5 ====================
+
+train_data=keras.utils.image_dataset_from_directory(
+    directory='/content/Dataset',
+    labels='inferred',
+    label_mode='int',
+    batch_size=32,
+    image_size=(160,160),
+    subset='training',
+    validation_split=0.2,
+    seed=123,
+    shuffle=True
+)
+validation_data=keras.utils.image_dataset_from_directory(
+    directory='/content/Dataset',
+    labels='inferred',
+    label_mode='int',
+    batch_size=32,
+    image_size=(160,160),
+    subset='validation',
+    validation_split=0.2,
+    seed=123,
+    shuffle=True
+)
+--- Output text ---
+Found 35725 files belonging to 23 classes.
+Using 28580 files for training.
+Found 35725 files belonging to 23 classes.
+Using 7145 files for validation.
+
+
+==================== Cell 6 ====================
+net=ResNet50(
+    include_top=False,
+    weights='imagenet',
+    input_shape=(160,160,3)
+)
+--- Output text ---
+Downloading data from https://storage.googleapis.com/tensorflow/keras-applications/resnet/resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5
+[1m94765736/94765736[0m [32m━━━━━━━━━━━━━━━━━━━━[0m[37m[0m [1m4s[0m 0us/step
+
+
+==================== Cell 13 ====================
+model.fit(train_data,validation_data=validation_data,epochs=20,callbacks=[earlystopping,modelcheck,red])
+--- Output text ---
+Epoch 1/20
+[1m894/894[0m [32m━━━━━━━━━━━━━━━━━━━━[0m[37m[0m [1m0s[0m 70ms/step - accuracy: 0.8097 - loss: 0.6550
+Epoch 1: val_accuracy improved from None to 0.93828, saving model to plant_disease.h5
+
+WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. 
+
+
+Epoch 1: finished saving model to plant_disease.h5
+[1m894/894[0m [32m━━━━━━━━━━━━━━━━━━━━[0m[37m[0m [1m96s[0m 94ms/step - accuracy: 0.8873 - loss: 0.3697 - val_accuracy: 0.9383 - val_loss: 0.1873 - learning_rate: 0.0010
+Epoch 2/20
+[1m893/894[0m [32m━━━━━━━━━━━━━━━━━━━[0m[37m━[0m [1m0s[0m 67ms/step - accuracy: 0.9472 - loss: 0.1610
+Epoch 2: val_accuracy improved from 0.93828 to 0.94192, saving model to plant_disease.h5
+
+WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. 
+
+
+Epoch 2: finished saving model to plant_disease.h5
+[1m894/894[0m [32m━━━━━━━━━━━━━━━━━━━━[0m[37m[0m [1m75s[0m 84ms/step - accuracy: 0.9507 - loss: 0.1477 - val_accuracy: 0.9419 - val_loss: 0.1718 - learning_rate: 0.0010
+Epoch 3/20
+[1m893/894[0m [32m━━━━━━━━━━━━━━━━━━━[0m[37m━[0m [1m0s[0m 68ms/step - accuracy: 0.9624 - loss: 0.1079
+Epoch 3: val_accuracy did not improve from 0.94192
+[1m894/894[0m [32m━━━━━━━━━━━━━━━━━━━━[0m[37m[0m [1m82s[0m 84ms/step - accuracy: 0.9652 - loss: 0.0996 - val_accuracy: 0.9402 - val_loss: 0.1701 - learning_rate: 0.0010
+Epoch 4/20
+[1m893/894[0m [32m━━━━━━━━━━━━━━━━━━━[0m[37m━[0m [1m0s[0m 67ms/step - accuracy: 0.9714 - loss: 0.0806
+Epoch 4: val_accuracy improved from 0.94192 to 0.95423, saving model to plant_disease.h5
+
+WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. 
+
+
+Epoch 4: finished saving model to plant_disease.h5
+[1m894/894[0m [32m━━━━━━━━━━━━━━━━━━━━[0m[37m[0m [1m76s[0m 85ms/step - accuracy: 0.9748 - loss: 0.0721 - val_accuracy: 0.9542 - val_loss: 0.1367 - learning_rate: 0.0010
+Epoch 5/20
+[1m893/894[0m [32m━━━━━━━━━━━━━━━━━━━[0m[37m━[0m [1m0s[0m 67ms/step - accuracy: 0.9771 - loss: 0.0683
+Epoch 5: val_accuracy did not improve from 0.95423
+[1m894/894[0m [32m━━━━━━━━━━━━━━━━━━━━[0m[37m[0m [1m75s[0m 83ms/step - accuracy: 0.9784 - loss: 0.0647 - val_accuracy: 0.9521 - val_loss: 0.1568 - learning_rate: 0.0010
+Epoch 6/20
+[1m893/894[0m [32m━━━━━━━━━━━━━━━━━━━[0m[37m━[0m [1m0s[0m 67ms/step - accuracy: 0.9830 - loss: 0.0488
+Epoch 6: val_accuracy improved from 0.95423 to 0.95773, saving model to plant_disease.h5
+
+WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. 
+
+
+Epoch 6: finished saving model to plant_disease.h5
+[1m894/894[0m [32m━━━━━━━━━━━━━━━━━━━━[0m[37m[0m [1m75s[0m 84ms/step - accuracy: 0.9835 - loss: 0.0480 - val_accuracy: 0.9577 - val_loss: 0.1544 - learning_rate: 0.0010
+Epoch 7/20
+[1m893/894[0m [32m━━━━━━━━━━━━━━━━━━━[0m[37m━[0m [1m0s[0m 67ms/step - accuracy: 0.9807 - loss: 0.0564
+Epoch 7: val_accuracy improved from 0.95773 to 0.96417, saving model to plant_disease.h5
+
+WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. 
+
+
+Epoch 7: finished saving model to plant_disease.h5
+[1m894/894[0m [32m━━━━━━━━━━━━━━━━━━━━[0m[37m[0m [1m75s[0m 84ms/step - accuracy: 0.9845 - loss: 0.0451 - val_accuracy: 0.9642 - val_loss: 0.1212 - learning_rate: 0.0010
+Epoch 8/20
+[1m893/894[0m [32m━━━━━━━━━━━━━━━━━━━[0m[37m━[0m [1m0s[0m 67ms/step - accuracy: 0.9836 - loss: 0.0472
+Epoch 8: val_accuracy improved from 0.96417 to 0.96613, saving model to plant_disease.h5
+
+WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. 
+
+
+Epoch 8: finished saving model to plant_disease.h5
+[1m894/894[0m [32m━━━━━━━━━━━━━━━━━━━━[0m[37m[0m [1m75s[0m 84ms/step - accuracy: 0.9844 - loss: 0.0461 - val_accuracy: 0.9661 - val_loss: 0.1267 - learning_rate: 0.0010
+Epoch 9/20
+[1m893/894[0m [32m━━━━━━━━━━━━━━━━━━━[0m[37m━[0m [1m0s[0m 68ms/step - accuracy: 0.9872 - loss: 0.0389
+Epoch 9: val_accuracy did not improve from 0.96613
+[1m894/894[0m [32m━━━━━━━━━━━━━━━━━━━━[0m[37m[0m [1m75s[0m 84ms/step - accuracy: 0.9853 - loss: 0.0461 - val_accuracy: 0.9582 - val_loss: 0.1496 - learning_rate: 0.0010
+Epoch 10/20
+[1m893/894[0m [32m━━━━━━━━━━━━━━━━━━━[0m[37m━[0m [1m0s[0m 67ms/step - accuracy: 0.9882 - loss: 0.0334
+Epoch 10: val_accuracy did not improve from 0.96613
+[1m894/894[0m [32m━━━━━━━━━━━━━━━━━━━━[0m[37m[0m [1m75s[0m 84ms/step - accuracy: 0.9897 - loss: 0.0294 - val_accuracy: 0.9570 - val_loss: 0.1622 - learning_rate: 0.0010
+Epoch 11/20
+[1m893/894[0m [32m━━━━━━━━━━━━━━━━━━━[0m[37m━[0m [1m0s[0m 68ms/step - accuracy: 0.9890 - loss: 0.0286
+Epoch 11: val_accuracy improved from 0.96613 to 0.96795, saving model to plant_disease.h5
+
+WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. 
+
+
+Epoch 11: finished saving model to plant_disease.h5
+[1m894/894[0m [32m━━━━━━━━━━━━━━━━━━━━[0m[37m[0m [1m76s[0m 85ms/step - accuracy: 0.9912 - loss: 0.0252 - val_accuracy: 0.9679 - val_loss: 0.1269 - learning_rate: 0.0010
+Epoch 12/20
+[1m893/894[0m [32m━━━━━━━━━━━━━━━━━━━[0m[37m━[0m [1m0s[0m 67ms/step - accuracy: 0.9902 - loss: 0.0272
+Epoch 12: val_accuracy did not improve from 0.96795
+
+Epoch 12: ReduceLROnPlateau reducing learning rate to 0.00020000000949949026.
+[1m894/894[0m [32m━━━━━━━━━━━━━━━━━━━━[0m[37m[0m [1m75s[0m 83ms/step - accuracy: 0.9896 - loss: 0.0286 - val_accuracy: 0.9561 - val_loss: 0.1974 - learning_rate: 0.0010
+Epoch 13/20
+[1m893/894[0m [32m━━━━━━━━━━━━━━━━━━━[0m[37m━[0m [1m0s[0m 67ms/step - accuracy: 0.9966 - loss: 0.0093
+Epoch 13: val_accuracy improved from 0.96795 to 0.97187, saving model to plant_disease.h5
+
+WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. 
+
+
+Epoch 13: finished saving model to plant_disease.h5
+[1m894/894[0m [32m━━━━━━━━━━━━━━━━━━━━[0m[37m[0m [1m83s[0m 84ms/step - accuracy: 0.9981 - loss: 0.0060 - val_accuracy: 0.9719 - val_loss: 0.1205 - learning_rate: 2.0000e-04
+Epoch 14/20
+[1m893/894[0m [32m━━━━━━━━━━━━━━━━━━━[0m[37m━[0m [1m0s[0m 68ms/step - accuracy: 0.9995 - loss: 0.0030
+Epoch 14: val_accuracy improved from 0.97187 to 0.97257, saving model to plant_disease.h5
+
+WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. 
+
+
+Epoch 14: finished saving model to plant_disease.h5
+[1m894/894[0m [32m━━━━━━━━━━━━━━━━━━━━[0m[37m[0m [1m83s[0m 85ms/step - accuracy: 0.9995 - loss: 0.0025 - val_accuracy: 0.9726 - val_loss: 0.1159 - learning_rate: 2.0000e-04
+Epoch 15/20
+[1m893/894[0m [32m━━━━━━━━━━━━━━━━━━━[0m[37m━[0m [1m0s[0m 67ms/step - accuracy: 0.9999 - loss: 0.0020
+Epoch 15: val_accuracy improved from 0.97257 to 0.97341, saving model to plant_disease.h5
+
+WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. 
+
+
+Epoch 15: finished saving model to plant_disease.h5
+[1m894/894[0m [32m━━━━━━━━━━━━━━━━━━━━[0m[37m[0m [1m76s[0m 84ms/step - accuracy: 0.9999 - loss: 0.0018 - val_accuracy: 0.9734 - val_loss: 0.1154 - learning_rate: 2.0000e-04
+Epoch 16/20
+[1m893/894[0m [32m━━━━━━━━━━━━━━━━━━━[0m[37m━[0m [1m0s[0m 68ms/step - accuracy: 1.0000 - loss: 0.0016
+Epoch 16: val_accuracy did not improve from 0.97341
+[1m894/894[0m [32m━━━━━━━━━━━━━━━━━━━━[0m[37m[0m [1m76s[0m 85ms/step - accuracy: 0.9999 - loss: 0.0015 - val_accuracy: 0.9730 - val_loss: 0.1144 - learning_rate: 2.0000e-04
+Epoch 17/20
+[1m893/894[0m [32m━━━━━━━━━━━━━━━━━━━[0m[37m━[0m [1m0s[0m 68ms/step - accuracy: 1.0000 - loss: 0.0012
+Epoch 17: val_accuracy did not improve from 0.97341
+[1m894/894[0m [32m━━━━━━━━━━━━━━━━━━━━[0m[37m[0m [1m76s[0m 85ms/step - accuracy: 1.0000 - loss: 0.0012 - val_accuracy: 0.9733 - val_loss: 0.1165 - learning_rate: 2.0000e-04
+Epoch 18/20
+[1m893/894[0m [32m━━━━━━━━━━━━━━━━━━━[0m[37m━[0m [1m0s[0m 68ms/step - accuracy: 0.9999 - loss: 0.0012
+Epoch 18: val_accuracy improved from 0.97341 to 0.97453, saving model to plant_disease.h5
+
+WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. 
+
+
+Epoch 18: finished saving model to plant_disease.h5
+[1m894/894[0m [32m━━━━━━━━━━━━━━━━━━━━[0m[37m[0m [1m76s[0m 85ms/step - accuracy: 0.9996 - loss: 0.0018 - val_accuracy: 0.9745 - val_loss: 0.1158 - learning_rate: 2.0000e-04
+Epoch 19/20
+[1m893/894[0m [32m━━━━━━━━━━━━━━━━━━━[0m[37m━[0m [1m0s[0m 68ms/step - accuracy: 0.9999 - loss: 9.9737e-04
+Epoch 19: val_accuracy improved from 0.97453 to 0.97509, saving model to plant_disease.h5
+
+WARNING:absl:You are saving your model as an HDF5 file via `model.save()` or `keras.saving.save_model(model)`. This file format is considered legacy. We recommend using instead the native Keras format, e.g. `model.save('my_model.keras')` or `keras.saving.save_model(model, 'my_model.keras')`. 
+
+
+Epoch 19: finished saving model to plant_disease.h5
+[1m894/894[0m [32m━━━━━━━━━━━━━━━━━━━━[0m[37m[0m [1m76s[0m 85ms/step - accuracy: 0.9999 - loss: 9.2772e-04 - val_accuracy: 0.9751 - val_loss: 0.1162 - learning_rate: 2.0000e-04
+Epoch 20/20
+[1m893/894[0m [32m━━━━━━━━━━━━━━━━━━━[0m[37m━[0m [1m0s[0m 69ms/step - accuracy: 1.0000 - loss: 7.4170e-04
+Epoch 20: val_accuracy did not improve from 0.97509
+[1m894/894[0m [32m━━━━━━━━━━━━━━━━━━━━[0m[37m[0m [1m76s[0m 85ms/step - accuracy: 1.0000 - loss: 6.5533e-04 - val_accuracy: 0.9748 - val_loss: 0.1170 - learning_rate: 2.0000e-04
+Restoring model weights from the end of the best epoch: 16.
+
+
+==================== Cell 14 ====================
+model.predict(validation_data)
+--- Output text ---
+[1m224/224[0m [32m━━━━━━━━━━━━━━━━━━━━[0m[37m[0m [1m22s[0m 83ms/step
+
+
+==================== Cell 15 ====================
+loss,accuracy=model.evaluate(validation_data)
+--- Output text ---
+[1m224/224[0m [32m━━━━━━━━━━━━━━━━━━━━[0m[37m[0m [1m15s[0m 67ms/step - accuracy: 0.9730 - loss: 0.1144
+
+
+==================== Cell 16 ====================
+print(loss,accuracy)
+--- Output text ---
+0.11435027420520782 0.9729881286621094
+
+
+==================== Cell 19 ====================
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import confusion_matrix
+
+class_names = train_data.class_names
+
+y_true = np.concatenate([y.numpy() for x, y in validation_data])
+y_pred_prob = model.predict(validation_data)
+y_pred = np.argmax(y_pred_prob, axis=1)
+
+cm = confusion_matrix(y_true, y_pred)
+
+plt.figure(figsize=(16, 14))
+
+sns.heatmap(
+    cm,
+    annot=True,
+    fmt="d",
+    cmap="Blues",
+    xticklabels=class_names,
+    yticklabels=class_names
+)
+
+plt.xlabel("Predicted Class")
+plt.ylabel("Actual Class")
+plt.title("Confusion Matrix Heatmap - ResNet50")
+plt.xticks(rotation=90)
+plt.yticks(rotation=0)
+
+plt.tight_layout()
+
+plt.savefig(
+    "resnet50_confusion_matrix.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.show()
+--- Output text ---
+[1m224/224[0m [32m━━━━━━━━━━━━━━━━━━━━[0m[37m[0m [1m15s[0m 68ms/step
+
+
+==================== Cell 21 ====================
+!pip install lime -q
+--- Output text ---
+[?25l     [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m0.0/275.7 kB[0m [31m?[0m eta [36m-:--:--[0m[2K     [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m275.7/275.7 kB[0m [31m19.2 MB/s[0m eta [36m0:00:00[0m
+[?25h  Preparing metadata (setup.py) ... [?25l[?25hdone
+  Building wheel for lime (setup.py) ... [?25l[?25hdone
+
+
+==================== Cell 24 ====================
+images, labels = next(iter(validation_data))
+
+image = images[0].numpy().astype(np.uint8)
+true_label = labels[0].numpy()
+
+print("True class:", class_names[true_label])
+--- Output text ---
+True class: Pepper__bell___healthy
+
+
+==================== Cell 27 ====================
+!pip install -q -U transformers accelerate
+--- Output text ---
+[?25l   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m0.0/12.6 MB[0m [31m?[0m eta [36m-:--:--[0m[2K   [91m━━━━━━━━━━━━━━━━━━━[0m[90m╺[0m[90m━━━━━━━━━━━━━━━━━━━━[0m [32m6.0/12.6 MB[0m [31m181.6 MB/s[0m eta [36m0:00:01[0m[2K   [91m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[90m╺[0m[90m━━━━━[0m [32m10.8/12.6 MB[0m [31m158.1 MB/s[0m eta [36m0:00:01[0m[2K   [91m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m[91m╸[0m [32m12.6/12.6 MB[0m [31m134.4 MB/s[0m eta [36m0:00:01[0m[2K   [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m12.6/12.6 MB[0m [31m85.4 MB/s[0m eta [36m0:00:00[0m
+[?25h
+
+==================== Cell 29 ====================
+device = 0 if torch.cuda.is_available() else -1
+
+sam2 = pipeline(
+    "mask-generation",
+    model="facebook/sam2.1-hiera-small",
+    device=device
+)
+--- Output text ---
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+WARNING:huggingface_hub.utils._http:Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+
+[transformers] `memory_attention_rope_theta` is deprecated and will be removed in v5.0. Use `rope_parameters['rope_theta']` instead.
+
+
+==================== Cell 30 ====================
+images, labels = next(iter(validation_data))
+
+sample_image = images[0].numpy().astype(np.uint8)
+
+true_class = class_names[labels[0].numpy()]
+
+print("True class:", true_class)
+--- Output text ---
+True class: Tomato_Septoria_leaf_spot
+
+
+==================== Cell 32 ====================
+sam_output = sam2(
+    sample_pil,
+    points_per_batch=16
+)
+
+print("Number of masks generated:", len(sam_output["masks"]))
+--- Output text ---
+Number of masks generated: 2
+

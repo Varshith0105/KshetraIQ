@@ -1,0 +1,25 @@
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Runtime data
+.tmp/
+.uploads/
+**/.git.local-backup/
+backend/uploads/
+backend/generated-reports/
+backend/.pytest_cache/
+backend/__pycache__/
+backend/**/__pycache__/
+**/__pycache__/
+*.py[cod]
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/tsconfig.tsbuildinfo
+
+# Future locally downloaded datasets and artifacts
+data/raw/
+data/processed/
+artifacts/generated/
