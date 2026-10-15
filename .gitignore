@@ -25,3 +25,10 @@ backend/.tmp/
 Thumbs.db
 .cache/
 .kaggle/
+
+# Local uploads and nested Git backup folders
+.uploads/
+**/.git.local-backup/
+
+# Generated TypeScript build info
+*.tsbuildinfo
