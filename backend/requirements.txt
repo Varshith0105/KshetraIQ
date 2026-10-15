@@ -4,9 +4,15 @@ pydantic>=2.8,<3.0
 pydantic-settings>=2.4,<3.0
 pytest>=8.0,<9.0
 httpx>=0.27,<1.0
-scikit-learn>=1.6,<2.0
+# Pinned: model artifacts in Agriverse_Models were pickled with scikit-learn 1.6.1
+scikit-learn==1.6.1
 joblib>=1.4,<2.0
 pandas>=2.2,<4.0
 numpy>=2.0,<3.0
 reportlab>=4.0,<6.0
 python-multipart>=0.0.20,<1.0
+# ML runtimes required by existing services (previously missing -> 503s)
+xgboost>=2.1,<4.0          # weather risk + market price models
+pillow>=10.0,<13.0         # plant disease image preprocessing
+keras>=3.0,<4.0            # plant disease .h5 model loading
+tensorflow-cpu>=2.16,<3.0  # keras backend
