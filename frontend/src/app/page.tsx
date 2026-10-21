@@ -35,6 +35,18 @@ import {
   VolumeXIcon,
 } from "./components/Icons";
 
+// ── Authenticated API helper ──
+// Sends the session cookie (credentials: "include") and, when available, the bearer token,
+// so saved assessments, reports and uploads are tied to the signed-in farmer.
+let sessionToken: string | null = null;
+function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers || {});
+  if (sessionToken && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${sessionToken}`);
+  }
+  return fetch(input, { ...init, headers, credentials: "include" });
+}
+
 /* ── helpers ─────────────────────────────────────────────── */
 function getApiBaseUrl(): string {
   if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
@@ -457,7 +469,7 @@ export default function Home() {
   const fetchAssessments = useCallback(async () => {
     if (!apiUrl) return;
     try {
-      const res = await fetch(`${apiUrl}/api/v1/assessments`);
+      const res = await apiFetch(`${apiUrl}/api/v1/assessments`);
       if (res.ok) {
         const data: Assessment[] = await res.json();
         setSavedAssessments(data);
@@ -476,7 +488,7 @@ export default function Home() {
   const fetchUploads = useCallback(async () => {
     if (!apiUrl) return;
     try {
-      const res = await fetch(`${apiUrl}/api/v1/uploads`);
+      const res = await apiFetch(`${apiUrl}/api/v1/uploads`);
       if (res.ok) {
         const data: UploadedFileItem[] = await res.json();
         setUploadedFiles(data);
@@ -495,10 +507,14 @@ export default function Home() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch(`${apiUrl}/api/v1/uploads/${category}`, {
+      const res = await apiFetch(`${apiUrl}/api/v1/uploads/${category}`, {
         method: "POST",
         body: formData,
       });
+      if (res.status === 401) {
+        setShowAuthModal(true);
+        throw new Error(language === "te" ? "ఫైళ్లు అప్‌లోడ్ చేయడానికి సైన్ ఇన్ చేయండి." : "Please sign in to upload files.");
+      }
       if (!res.ok) {
         const err = await res.json().catch(() => null);
         throw new Error(err?.detail || `Upload failed (HTTP ${res.status})`);
@@ -520,7 +536,7 @@ export default function Home() {
 
   async function handleDeleteUpload(fileId: string) {
     try {
-      const res = await fetch(`${apiUrl}/api/v1/uploads/${fileId}`, {
+      const res = await apiFetch(`${apiUrl}/api/v1/uploads/${fileId}`, {
         method: "DELETE",
       });
       if (res.ok) {
@@ -562,7 +578,7 @@ export default function Home() {
     setChatLoading(true);
 
     try {
-      const res = await fetch(`${apiUrl}/api/v1/chat`, {
+      const res = await apiFetch(`${apiUrl}/api/v1/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -787,7 +803,7 @@ export default function Home() {
     setYieldLoading(true);
     setYieldError("");
     try {
-      const res = await fetch(`${apiUrl}/api/v1/predictions/crop-yield`, {
+      const res = await apiFetch(`${apiUrl}/api/v1/predictions/crop-yield`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -818,7 +834,7 @@ export default function Home() {
     setClimateLoading(true);
     setClimateError("");
     try {
-      const res = await fetch(`${apiUrl}/api/v1/predictions/climate-scenario`, {
+      const res = await apiFetch(`${apiUrl}/api/v1/predictions/climate-scenario`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -846,7 +862,7 @@ export default function Home() {
     setSustainabilityLoading(true);
     setSustainabilityError("");
     try {
-      const res = await fetch(`${apiUrl}/api/v1/predictions/sustainability`, {
+      const res = await apiFetch(`${apiUrl}/api/v1/predictions/sustainability`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -873,7 +889,7 @@ export default function Home() {
     setWeatherRiskLoading(true);
     setWeatherRiskError("");
     try {
-      const res = await fetch(`${apiUrl}/api/v1/predictions/weather-risk`, {
+      const res = await apiFetch(`${apiUrl}/api/v1/predictions/weather-risk`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -911,7 +927,7 @@ export default function Home() {
       if (authTab === "register" && authDisplayName.trim()) {
         body.display_name = authDisplayName.trim();
       }
-      const res = await fetch(endpoint, {
+      const res = await apiFetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -942,7 +958,7 @@ export default function Home() {
   async function handleLogout() {
     if (authToken) {
       try {
-        await fetch(`${apiUrl}/api/v1/auth/logout`, {
+        await apiFetch(`${apiUrl}/api/v1/auth/logout`, {
           method: "POST",
           headers: { Authorization: `Bearer ${authToken}` },
         });
@@ -958,7 +974,7 @@ export default function Home() {
     setMktError("");
     setMktResult(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/predictions/market-price`, {
+      const res = await apiFetch(`${apiUrl}/api/v1/predictions/market-price`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1003,7 +1019,7 @@ export default function Home() {
     try {
       const formData = new FormData();
       formData.append("file", diseaseFile);
-      const res = await fetch(`${apiUrl}/api/v1/predictions/plant-disease`, {
+      const res = await apiFetch(`${apiUrl}/api/v1/predictions/plant-disease`, {
         method: "POST",
         body: formData,
       });
@@ -1026,7 +1042,7 @@ export default function Home() {
     setIrrError("");
     setIrrResult(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/predictions/irrigation`, {
+      const res = await apiFetch(`${apiUrl}/api/v1/predictions/irrigation`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1057,10 +1073,42 @@ export default function Home() {
     setApiUrl(getApiBaseUrl());
   }, []);
 
+  // Keep the API helper's bearer token in sync and reload the farmer's own records on sign-in/out.
+  useEffect(() => {
+    sessionToken = authToken;
+    if (!authToken) {
+      setSavedAssessments([]);
+      setUploadedFiles([]);
+      return;
+    }
+    fetchAssessments();
+    fetchUploads();
+  }, [authToken, fetchAssessments, fetchUploads]);
+
+  // Restore an existing session from the httpOnly cookie after a page refresh.
+  useEffect(() => {
+    if (!apiUrl) return;
+    apiFetch(`${apiUrl}/api/v1/auth/me`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((u) => {
+        if (u?.user_id) {
+          setAuthUser({
+            user_id: u.user_id,
+            email: u.email,
+            display_name: u.full_name || "",
+            created_at: u.created_at,
+          });
+          fetchAssessments();
+          fetchUploads();
+        }
+      })
+      .catch(() => {});
+  }, [apiUrl, fetchAssessments, fetchUploads]);
+
   // Fetch initial data & backend runtime health
   useEffect(() => {
     if (!apiUrl) return;
-    fetch(`${apiUrl}/health`)
+    apiFetch(`${apiUrl}/health`)
       .then((r) => (r.ok ? r.json() : null))
       .then((h) => {
         if (h?.storage_mode) setStorageMode(h.storage_mode);
@@ -1069,18 +1117,17 @@ export default function Home() {
       })
       .catch(() => {});
 
-    fetch(`${apiUrl}/api/v1/models`)
+    apiFetch(`${apiUrl}/api/v1/models`)
       .then((r) => (r.ok ? r.json() : []))
       .then(setModelCatalog)
       .catch(() => {});
-    fetchAssessments();
-    fetchUploads();
-  }, [apiUrl, fetchAssessments, fetchUploads]);
+    // Saved assessments/uploads are private: they load after sign-in or session restore.
+  }, [apiUrl]);
 
   // Fetch dashboard weather when arriving at dashboard with a district set
   const fetchDashWeather = useCallback(() => {
     if (!apiUrl || !district || !state) return;
-    fetch(
+    apiFetch(
       `${apiUrl}/api/v1/weather/lookup?district=${encodeURIComponent(district)}&state=${encodeURIComponent(state)}&season=${encodeURIComponent(season)}`
     )
       .then((r) => r.ok ? r.json() : null)
@@ -1115,7 +1162,7 @@ export default function Home() {
     setFetchingWeather(true);
     setWeatherNotice("");
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `${apiUrl}/api/v1/weather/lookup?district=${encodeURIComponent(district)}&state=${encodeURIComponent(state)}&season=${encodeURIComponent(season)}`
       );
       if (!res.ok) throw new Error(`Weather service returned HTTP ${res.status}`);
@@ -1194,7 +1241,7 @@ export default function Home() {
     };
 
     try {
-      const response = await fetch(`${apiUrl}/api/v1/assessments`, {
+      const response = await apiFetch(`${apiUrl}/api/v1/assessments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -1247,9 +1294,14 @@ export default function Home() {
     if (!result) return;
     setPdfError("");
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `${apiUrl}/api/v1/assessments/${result.assessment_id}/report/preview`
       );
+      if (res.status === 401) {
+        setShowAuthModal(true);
+        throw new Error(language === "te" ? "నివేదిక కోసం దయచేసి సైన్ ఇన్ చేయండి." : "Please sign in, then run the assessment again to save and download its report.");
+      }
+      if (res.status === 404) throw new Error(language === "te" ? "ఈ అంచనా మీ ఖాతాలో సేవ్ కాలేదు. సైన్ ఇన్ చేసి మళ్లీ ప్రయత్నించండి." : "This assessment isn't saved to your account. Sign in and run it again.");
       if (!res.ok) throw new Error("Could not load report preview.");
       const previewData: ReportPreview = await res.json();
       setReportPreview(previewData);
@@ -1264,7 +1316,7 @@ export default function Home() {
     setGeneratingPdf(true);
     setPdfError("");
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `${apiUrl}/api/v1/assessments/${result.assessment_id}/report/confirm`,
         { method: "POST" }
       );
@@ -1958,7 +2010,7 @@ export default function Home() {
                   ? (language === "te" ? "సుపాబేస్ క్లౌడ్ నిల్వ సక్రియం." : "Supabase Cloud Database connected.")
                   : (language === "te"
                       ? "ఇన్-మెమరీ మాత్రమే. సర్వర్ రీస్టార్ట్ అయితే అసెస్‌మెంట్లు తొలగించబడతాయి."
-                      : "In-memory only. Supabase credentials not configured — assessments lost on restart.")}
+                      : "In-memory only — assessments are lost on restart.")}
               </div>
             </div>
           </div>

@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 from fastapi import Cookie, FastAPI, File, Header, HTTPException, Query, Request, Response, UploadFile
@@ -44,6 +45,8 @@ from app.services.upload_service import UploadService
 from app.services.weather_risk_service import WeatherRiskService
 from app.services.weather_service import WeatherService
 from app.services.yield_recommender import CropYieldService
+
+logger = logging.getLogger("kshetraiq.api")
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -125,7 +128,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             return yield_service.predict(payload)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Yield prediction execution failed: {e}")
+            logger.exception("Yield prediction execution failed")
+            raise HTTPException(status_code=500, detail="Yield prediction execution failed. Please try again or contact support.")
 
     @app.post("/api/v1/predictions/climate-scenario", response_model=ClimateScenarioResponse)
     def predict_climate_scenario(payload: ClimateScenarioRequest) -> ClimateScenarioResponse:
@@ -137,7 +141,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             return climate_service.predict(payload)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Climate scenario execution failed: {e}")
+            logger.exception("Climate scenario execution failed")
+            raise HTTPException(status_code=500, detail="Climate scenario execution failed. Please try again or contact support.")
 
     @app.post("/api/v1/predictions/sustainability", response_model=SustainabilityResponse)
     def calculate_sustainability(payload: SustainabilityRequest) -> SustainabilityResponse:
@@ -149,7 +154,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             return sustainability_service.calculate(payload)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Sustainability calculation failed: {e}")
+            logger.exception("Sustainability calculation failed")
+            raise HTTPException(status_code=500, detail="Sustainability calculation failed. Please try again or contact support.")
 
     @app.post("/api/v1/predictions/weather-risk", response_model=WeatherRiskResponse)
     def predict_weather_risk(payload: WeatherRiskRequest) -> WeatherRiskResponse:
@@ -161,7 +167,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             return weather_risk_service.predict(payload)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Weather risk prediction failed: {e}")
+            logger.exception("Weather risk prediction failed")
+            raise HTTPException(status_code=500, detail="Weather risk prediction failed. Please try again or contact support.")
 
     def _get_auth_user(
         authorization: str | None = None,
@@ -177,6 +184,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not token:
             return None
         return auth_service.get_user_by_token(token)
+
+    def _require_user(authorization: str | None, session_cookie: str | None) -> UserProfileResponse:
+        user = _get_auth_user(authorization, session_cookie)
+        if user is None:
+            raise HTTPException(status_code=401, detail="Please sign in to access saved farm records.")
+        return user
+
+    async def _read_limited(file: UploadFile) -> bytes:
+        """Read an upload in chunks, aborting as soon as the configured size limit is exceeded."""
+        limit = settings.max_upload_bytes
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            chunk = await file.read(1024 * 1024)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > limit:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"File exceeds maximum size of {limit // (1024 * 1024)} MB.",
+                )
+            chunks.append(chunk)
+        return b"".join(chunks)
 
     # ──────────── Authentication Endpoints ────────────
 
@@ -196,7 +227,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Registration failed: {e}")
+            logger.exception("Registration failed")
+            raise HTTPException(status_code=500, detail="Registration failed. Please try again or contact support.")
 
     @app.post("/api/v1/auth/login", response_model=AuthTokenResponse)
     def login_user(payload: UserLoginRequest, response: Response) -> AuthTokenResponse:
@@ -214,7 +246,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except ValueError as e:
             raise HTTPException(status_code=401, detail=str(e))
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Login failed: {e}")
+            logger.exception("Login failed")
+            raise HTTPException(status_code=500, detail="Login failed. Please try again or contact support.")
 
     @app.get("/api/v1/auth/me", response_model=UserProfileResponse)
     def get_current_user_profile(
@@ -269,7 +302,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 )
             )
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Market price forecast failed: {e}")
+            logger.exception("Market price forecast failed")
+            raise HTTPException(status_code=500, detail="Market price forecast failed. Please try again or contact support.")
 
     @app.get("/api/v1/market/prices")
     def get_market_observations(
@@ -290,18 +324,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         content_type = file.content_type or ""
         valid_types = {"image/jpeg", "image/png", "image/webp", "application/octet-stream"}
-        if content_type not in valid_types and not any(file.filename.lower().endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp"]):
+        if content_type not in valid_types and not any((file.filename or "").lower().endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp"]):
             raise HTTPException(
                 status_code=400,
                 detail="Invalid image format. Supported formats are JPEG, PNG, and WEBP.",
             )
 
-        image_bytes = await file.read()
-        if len(image_bytes) > settings.max_upload_bytes:
-            raise HTTPException(
-                status_code=400,
-                detail=f"File exceeds maximum size of {settings.max_upload_bytes // (1024 * 1024)} MB.",
-            )
+        image_bytes = await _read_limited(file)
 
         try:
             result = plant_disease_service.predict_image(
@@ -312,7 +341,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Disease inference failed: {e}")
+            logger.exception("Disease inference failed")
+            raise HTTPException(status_code=500, detail="Disease inference failed. Please try again or contact support.")
 
     # ──────────── Irrigation Advisory ────────────
 
@@ -330,7 +360,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
             return IrrigationResponse.model_validate(res)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Irrigation advisory calculation failed: {e}")
+            logger.exception("Irrigation advisory calculation failed")
+            raise HTTPException(status_code=500, detail="Irrigation advisory calculation failed. Please try again or contact support.")
 
     # ──────────── Weather Lookup ────────────
 
@@ -373,8 +404,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         authorization: str | None = Header(default=None),
         kshetraiq_session: str | None = Cookie(default=None),
     ) -> list[AssessmentResponse]:
-        user = _get_auth_user(authorization, kshetraiq_session)
-        return service.list_all(user_id=user.user_id if user else None)
+        user = _require_user(authorization, kshetraiq_session)
+        return service.list_all(user_id=user.user_id)
 
     @app.get("/api/v1/assessments/{assessment_id}", response_model=AssessmentResponse)
     def get_assessment(
@@ -382,8 +413,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         authorization: str | None = Header(default=None),
         kshetraiq_session: str | None = Cookie(default=None),
     ) -> AssessmentResponse:
-        user = _get_auth_user(authorization, kshetraiq_session)
-        record = service.get(assessment_id, user_id=user.user_id if user else None)
+        user = _require_user(authorization, kshetraiq_session)
+        record = service.get(assessment_id, user_id=user.user_id)
         if record is None:
             raise HTTPException(status_code=404, detail="Assessment not found or access denied")
         return record
@@ -394,8 +425,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         authorization: str | None = Header(default=None),
         kshetraiq_session: str | None = Cookie(default=None),
     ) -> ReportPreview:
-        user = _get_auth_user(authorization, kshetraiq_session)
-        preview = service.preview_report(assessment_id, user_id=user.user_id if user else None)
+        user = _require_user(authorization, kshetraiq_session)
+        preview = service.preview_report(assessment_id, user_id=user.user_id)
         if preview is None:
             raise HTTPException(status_code=404, detail="Assessment not found or access denied")
         return preview
@@ -406,8 +437,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         authorization: str | None = Header(default=None),
         kshetraiq_session: str | None = Cookie(default=None),
     ) -> Response:
-        user = _get_auth_user(authorization, kshetraiq_session)
-        pdf_bytes = service.generate_pdf(assessment_id, user_id=user.user_id if user else None)
+        user = _require_user(authorization, kshetraiq_session)
+        pdf_bytes = service.generate_pdf(assessment_id, user_id=user.user_id)
         if pdf_bytes is None:
             raise HTTPException(status_code=404, detail="Assessment not found or access denied")
         return Response(
@@ -427,9 +458,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         user = _get_auth_user(authorization, kshetraiq_session)
         assessment = None
         if request.assessment_id:
-            assessment = service.get(request.assessment_id, user_id=user.user_id if user else None)
+            assessment = service.get(request.assessment_id, user_id=user.user_id) if user else None
         else:
-            assessment = service.get_latest(user_id=user.user_id if user else None)
+            assessment = service.get_latest(user_id=user.user_id) if user else None
         return chat_service.respond(request, assessment)
 
     # ──────────── File Upload Endpoints ────────────
@@ -441,21 +472,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         authorization: str | None = Header(default=None),
         kshetraiq_session: str | None = Cookie(default=None),
     ) -> UploadResponse:
-        user = _get_auth_user(authorization, kshetraiq_session)
+        user = _require_user(authorization, kshetraiq_session)
         if category not in {"soil_report", "field_photo", "crop_photo"}:
             raise HTTPException(
                 status_code=400,
                 detail=f"Invalid category '{category}'. Must be 'soil_report', 'field_photo', or 'crop_photo'.",
             )
 
-        content = await file.read()
+        content = await _read_limited(file)
         try:
             return upload_service.validate_and_save(
                 file_content=content,
                 original_filename=file.filename or "unknown",
                 content_type=file.content_type,
                 category=category,
-                user_id=user.user_id if user else None,
+                user_id=user.user_id,
             )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
@@ -466,8 +497,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         authorization: str | None = Header(default=None),
         kshetraiq_session: str | None = Cookie(default=None),
     ) -> list[dict]:
-        user = _get_auth_user(authorization, kshetraiq_session)
-        return upload_service.list_files(category=category, user_id=user.user_id if user else None)
+        user = _require_user(authorization, kshetraiq_session)
+        return upload_service.list_files(category=category, user_id=user.user_id)
 
     @app.delete("/api/v1/uploads/{file_id}")
     def delete_upload(
@@ -475,8 +506,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         authorization: str | None = Header(default=None),
         kshetraiq_session: str | None = Cookie(default=None),
     ) -> dict[str, str]:
-        user = _get_auth_user(authorization, kshetraiq_session)
-        if upload_service.delete_file(file_id, user_id=user.user_id if user else None):
+        user = _require_user(authorization, kshetraiq_session)
+        if upload_service.delete_file(file_id, user_id=user.user_id):
             return {"status": "deleted", "file_id": file_id}
         raise HTTPException(status_code=404, detail="File not found or access denied")
 

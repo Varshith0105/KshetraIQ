@@ -5,6 +5,20 @@ from app.main import create_app
 client = TestClient(create_app())
 
 
+def auth_headers() -> dict:
+    """Register a fresh farmer account and return its bearer auth header."""
+    import secrets
+    pw = 'SecurePassword123!'
+    resp = client.post('/api/v1/auth/register', json={
+        'email': f'test_{secrets.token_hex(6)}@kshetraiq.in',
+        'full_name': 'Test Farmer',
+        'password': pw,
+        'confirm_password': pw,
+    })
+    assert resp.status_code == 201
+    return {'Authorization': f"Bearer {resp.json()['token']}"}
+
+
 def valid_payload_with_weather() -> dict:
     return {
         "farm_name": "Rythu Farm",
@@ -104,13 +118,14 @@ def test_advisor_deterministic_guidance() -> None:
 
 
 def test_two_step_pdf_report_flow() -> None:
+    h = auth_headers()
     # 1. Create assessment
-    create_resp = client.post("/api/v1/assessments", json=valid_payload_with_weather())
+    create_resp = client.post("/api/v1/assessments", json=valid_payload_with_weather(), headers=h)
     assert create_resp.status_code == 201
     assessment_id = create_resp.json()["assessment_id"]
 
     # 2. Preview report (asks for explicit confirmation)
-    preview_resp = client.get(f"/api/v1/assessments/{assessment_id}/report/preview")
+    preview_resp = client.get(f"/api/v1/assessments/{assessment_id}/report/preview", headers=h)
     assert preview_resp.status_code == 200
     preview_data = preview_resp.json()
     assert preview_data["farm_name"] == "Rythu Farm"
@@ -118,7 +133,7 @@ def test_two_step_pdf_report_flow() -> None:
     assert "confirmation_prompt_te" in preview_data
 
     # 3. Confirm and generate PDF
-    confirm_resp = client.post(f"/api/v1/assessments/{assessment_id}/report/confirm")
+    confirm_resp = client.post(f"/api/v1/assessments/{assessment_id}/report/confirm", headers=h)
     assert confirm_resp.status_code == 200
     assert confirm_resp.headers["content-type"] == "application/pdf"
     assert len(confirm_resp.content) > 1000
@@ -195,8 +210,9 @@ def test_chat_without_assessment() -> None:
 
 
 def test_chat_with_assessment_context() -> None:
-    client.post('/api/v1/assessments', json=valid_payload_with_weather())
-    resp = client.post('/api/v1/chat', json={'message': 'what crop do you recommend?', 'language': 'en'})
+    h = auth_headers()
+    client.post('/api/v1/assessments', json=valid_payload_with_weather(), headers=h)
+    resp = client.post('/api/v1/chat', json={'message': 'what crop do you recommend?', 'language': 'en'}, headers=h)
     assert resp.status_code == 200
     body = resp.json()
     assert body['assessment_context_used'] is True
@@ -212,8 +228,9 @@ def test_chat_telugu_response() -> None:
 
 
 def test_chat_soil_topic() -> None:
-    client.post('/api/v1/assessments', json=valid_payload_with_weather())
-    resp = client.post('/api/v1/chat', json={'message': 'tell me about my soil pH', 'language': 'en'})
+    h = auth_headers()
+    client.post('/api/v1/assessments', json=valid_payload_with_weather(), headers=h)
+    resp = client.post('/api/v1/chat', json={'message': 'tell me about my soil pH', 'language': 'en'}, headers=h)
     assert resp.status_code == 200
     body = resp.json()
     assert 'ph' in body['reply'].lower()
@@ -223,7 +240,7 @@ def test_chat_soil_topic() -> None:
 
 
 def test_list_assessments() -> None:
-    resp = client.get('/api/v1/assessments')
+    resp = client.get('/api/v1/assessments', headers=auth_headers())
     assert resp.status_code == 200
     body = resp.json()
     assert isinstance(body, list)
@@ -242,6 +259,7 @@ def test_upload_valid_image() -> None:
     resp = client.post(
         '/api/v1/uploads/field_photo',
         files={'file': ('test_field.png', png_data, 'image/png')},
+        headers=auth_headers(),
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -254,6 +272,7 @@ def test_upload_rejects_invalid_type() -> None:
     resp = client.post(
         '/api/v1/uploads/field_photo',
         files={'file': ('malware.exe', b'MZ executable content', 'application/octet-stream')},
+        headers=auth_headers(),
     )
     assert resp.status_code == 400
     assert 'not allowed' in resp.json()['detail'].lower()
@@ -263,21 +282,71 @@ def test_upload_rejects_invalid_category() -> None:
     resp = client.post(
         '/api/v1/uploads/secret_data',
         files={'file': ('test.png', b'\x89PNG', 'image/png')},
+        headers=auth_headers(),
     )
     assert resp.status_code == 400
 
 
 def test_delete_uploaded_file() -> None:
+    h = auth_headers()
     png_data = b'\x89PNG\r\n\x1a\n' + b'\x00' * 50
     resp = client.post(
         '/api/v1/uploads/crop_photo',
         files={'file': ('crop.png', png_data, 'image/png')},
+        headers=h,
     )
-    if resp.status_code == 200:
-        file_id = resp.json()['file_id']
-        del_resp = client.delete(f'/api/v1/uploads/{file_id}')
-        assert del_resp.status_code == 200
-        assert del_resp.json()['status'] == 'deleted'
+    assert resp.status_code == 200
+    file_id = resp.json()['file_id']
+    # another user cannot delete it
+    assert client.delete(f'/api/v1/uploads/{file_id}', headers=auth_headers()).status_code == 404
+    del_resp = client.delete(f'/api/v1/uploads/{file_id}', headers=h)
+    assert del_resp.status_code == 200
+    assert del_resp.json()['status'] == 'deleted'
+
+
+def test_upload_rejects_spoofed_content() -> None:
+    resp = client.post(
+        '/api/v1/uploads/field_photo',
+        files={'file': ('fake.png', b'MZ this is not really a png', 'image/png')},
+        headers=auth_headers(),
+    )
+    assert resp.status_code == 400
+
+
+def test_upload_rejects_oversized_file() -> None:
+    from app.core.config import get_settings
+    big = b'\x89PNG\r\n\x1a\n' + b'\x00' * (get_settings().max_upload_bytes + 1)
+    resp = client.post(
+        '/api/v1/uploads/field_photo',
+        files={'file': ('big.png', big, 'image/png')},
+        headers=auth_headers(),
+    )
+    assert resp.status_code == 413
+
+
+def test_uploads_require_auth_and_persist_across_restart() -> None:
+    anon_client = TestClient(create_app())  # fresh client: no session cookie from earlier registrations
+    assert anon_client.get('/api/v1/uploads').status_code == 401
+    h = auth_headers()
+    png = b'\x89PNG\r\n\x1a\n' + b'\x00' * 20
+    up = client.post('/api/v1/uploads/field_photo', files={'file': ('p.png', png, 'image/png')}, headers=h)
+    assert up.status_code == 200
+    reloaded = TestClient(create_app())
+    ids = [f['file_id'] for f in reloaded.get('/api/v1/uploads', headers=h).json()]
+    assert up.json()['file_id'] in ids
+
+
+def test_saved_records_require_auth() -> None:
+    anon_client = TestClient(create_app())  # fresh client: no session cookie
+    assert anon_client.get('/api/v1/assessments').status_code == 401
+    anon = anon_client.post('/api/v1/assessments', json=valid_payload_with_weather())
+    assert anon.status_code == 201
+    anon_id = anon.json()['assessment_id']
+    # anonymous (unowned) results are never readable back, even by signed-in users
+    assert anon_client.get(f'/api/v1/assessments/{anon_id}').status_code == 401
+    assert client.get(f'/api/v1/assessments/{anon_id}', headers=auth_headers()).status_code == 404
+    assert anon_client.get(f'/api/v1/assessments/{anon_id}/report/preview').status_code == 401
+
 
 
 # -- Model Health & Prediction Endpoint Tests --
@@ -495,7 +564,8 @@ def test_auth_registration_login_and_user_isolation() -> None:
 
 
 def test_sqlite_persistence_survives_reload() -> None:
-    create_resp = client.post('/api/v1/assessments', json=valid_payload_with_weather())
+    h = auth_headers()
+    create_resp = client.post('/api/v1/assessments', json=valid_payload_with_weather(), headers=h)
     assert create_resp.status_code == 201
     created_id = create_resp.json()['assessment_id']
 
@@ -504,6 +574,6 @@ def test_sqlite_persistence_survives_reload() -> None:
     reloaded_app = create_app(get_settings())
     reloaded_client = TestClient(reloaded_app)
 
-    get_resp = reloaded_client.get(f'/api/v1/assessments/{created_id}')
+    get_resp = reloaded_client.get(f'/api/v1/assessments/{created_id}', headers=h)
     assert get_resp.status_code == 200
     assert get_resp.json()['assessment_id'] == created_id

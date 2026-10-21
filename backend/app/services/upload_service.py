@@ -6,6 +6,7 @@ and crop/plant photos. Enforces file type, size limits, and safe filenames.
 import logging
 import os
 import re
+import sqlite3
 import uuid
 from pathlib import Path
 
@@ -29,6 +30,21 @@ ALLOWED_PHOTO_TYPES: dict[str, list[str]] = {
 
 ALLOWED_CATEGORIES = {"soil_report", "field_photo", "crop_photo"}
 
+# Magic-byte signatures used to verify real file content (extension/MIME alone can be spoofed)
+_SIGNATURES: dict[str, tuple[bytes, ...]] = {
+    ".pdf": (b"%PDF",),
+    ".jpg": (b"\xff\xd8\xff",),
+    ".jpeg": (b"\xff\xd8\xff",),
+    ".png": (b"\x89PNG\r\n\x1a\n",),
+}
+
+
+def _content_matches_extension(content: bytes, ext: str) -> bool:
+    if ext == ".webp":
+        return content[:4] == b"RIFF" and content[8:12] == b"WEBP"
+    sigs = _SIGNATURES.get(ext)
+    return bool(sigs) and any(content.startswith(sig) for sig in sigs)
+
 
 def _safe_filename(original: str) -> str:
     """Strip path separators and dangerous characters, preserving the extension."""
@@ -49,8 +65,32 @@ class UploadService:
         self._settings = settings
         self._upload_dir = Path(settings.resolved_model_directory).parent / ".uploads"
         self._upload_dir.mkdir(parents=True, exist_ok=True)
-        self._records: dict[str, dict] = {}
+        # Upload metadata is persisted in SQLite (was an in-memory dict, lost on every restart).
+        self._db_path = Path(settings.resolved_sqlite_db_path)
+        self._db_path.parent.mkdir(parents=True, exist_ok=True)
+        with self._conn() as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS uploads (
+                    file_id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    original_filename TEXT NOT NULL,
+                    safe_filename TEXT NOT NULL,
+                    file_type TEXT NOT NULL,
+                    size_bytes INTEGER NOT NULL,
+                    category TEXT NOT NULL,
+                    path TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_uploads_user ON uploads(user_id)")
         logger.info("Upload service initialized. Storage: %s", self._upload_dir)
+
+    def _conn(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(str(self._db_path))
+        conn.row_factory = sqlite3.Row
+        return conn
 
     def validate_and_save(
         self,
@@ -94,6 +134,15 @@ class UploadService:
         if len(file_content) == 0:
             raise ValueError("Uploaded file is empty.")
 
+        if not _content_matches_extension(file_content, ext):
+            raise ValueError(f"File content does not match its '{ext}' extension.")
+
+        if content_type and content_type not in allowed and content_type != "application/octet-stream":
+            raise ValueError(f"Content type '{content_type}' is not allowed for {category}.")
+
+        if not user_id:
+            raise ValueError("Authentication required to upload files.")
+
         # Generate safe filename and save
         safe_name = _safe_filename(original_filename)
         category_dir = self._upload_dir / category
@@ -118,7 +167,12 @@ class UploadService:
             "category": category,
             "path": str(dest),
         }
-        self._records[file_id] = record
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO uploads (file_id, user_id, original_filename, safe_filename, file_type, size_bytes, category, path)"
+                " VALUES (:file_id, :user_id, :original_filename, :safe_filename, :file_type, :size_bytes, :category, :path)",
+                record,
+            )
 
         response = UploadResponse(
             file_id=file_id,
@@ -128,37 +182,42 @@ class UploadService:
             size_bytes=len(file_content),
             category=category,
             storage="local_temp",
-            message="File uploaded successfully to local temporary storage.",
+            message="File uploaded successfully to local server storage.",
         )
         logger.info("File uploaded: %s -> %s (%d bytes, user: %s)", original_filename, safe_name, len(file_content), user_id)
         return response
 
     def get_record(self, file_id: str, user_id: str | None = None) -> dict | None:
-        record = self._records.get(file_id)
-        if not record:
+        if not user_id:
             return None
-        if user_id and record.get("user_id") and record.get("user_id") != user_id:
-            return None
-        return record
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM uploads WHERE file_id = ? AND user_id = ?", (file_id, user_id)
+            ).fetchone()
+        return dict(row) if row else None
 
     def delete_file(self, file_id: str, user_id: str | None = None) -> bool:
-        record = self._records.get(file_id)
+        record = self.get_record(file_id, user_id)
         if not record:
             return False
-        if user_id and record.get("user_id") and record.get("user_id") != user_id:
-            return False
-        path = Path(record["path"])
-        if path.is_file():
+        path = Path(record["path"]).resolve()
+        if path.is_file() and self._upload_dir.resolve() in path.parents:
             path.unlink()
-        del self._records[file_id]
+        with self._conn() as conn:
+            conn.execute("DELETE FROM uploads WHERE file_id = ? AND user_id = ?", (file_id, user_id))
         return True
 
     def list_files(self, category: str | None = None, user_id: str | None = None) -> list[dict]:
-        records = list(self._records.values())
-        if user_id:
-            records = [r for r in records if r.get("user_id") == user_id]
+        if not user_id:
+            return []
+        query = "SELECT * FROM uploads WHERE user_id = ?"
+        params: list = [user_id]
         if category:
-            records = [r for r in records if r["category"] == category]
+            query += " AND category = ?"
+            params.append(category)
+        query += " ORDER BY created_at DESC"
+        with self._conn() as conn:
+            rows = conn.execute(query, params).fetchall()
         return [
             {
                 "file_id": r["file_id"],
@@ -168,5 +227,5 @@ class UploadService:
                 "size_bytes": r["size_bytes"],
                 "category": r["category"],
             }
-            for r in records
+            for r in rows
         ]

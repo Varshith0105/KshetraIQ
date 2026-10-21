@@ -53,18 +53,17 @@ class InMemoryStorage(StorageBackend):
         self._user_map[record.assessment_id] = user_id
 
     def get(self, assessment_id: str, user_id: str | None = None) -> AssessmentResponse | None:
+        # Strict ownership: anonymous/unowned records are never readable back.
         rec = self._records.get(assessment_id)
-        if rec and user_id is not None:
-            owner = self._user_map.get(assessment_id)
-            if owner is not None and owner != user_id:
-                return None
+        if rec is None or user_id is None or self._user_map.get(assessment_id) != user_id:
+            return None
         return rec
 
     def list_all(self, user_id: str | None = None) -> list[AssessmentResponse]:
+        if user_id is None:
+            return []
         records = sorted(self._records.values(), key=lambda a: a.created_at, reverse=True)
-        if user_id is not None:
-            return [r for r in records if self._user_map.get(r.assessment_id) in (user_id, None)]
-        return records
+        return [r for r in records if self._user_map.get(r.assessment_id) == user_id]
 
     def get_latest(self, user_id: str | None = None) -> AssessmentResponse | None:
         records = self.list_all(user_id)
@@ -138,50 +137,33 @@ class SQLiteStorage(StorageBackend):
             conn.commit()
 
     def get(self, assessment_id: str, user_id: str | None = None) -> AssessmentResponse | None:
+        # Strict ownership: only the owning user can read a record; unowned records are never returned.
+        if user_id is None:
+            return None
         with self._get_connection() as conn:
-            if user_id is not None:
-                cursor = conn.execute(
-                    "SELECT payload_json, user_id FROM assessments WHERE assessment_id = ?",
-                    (assessment_id,),
-                )
-                row = cursor.fetchone()
-                if row:
-                    owner = row["user_id"]
-                    if owner is not None and owner != user_id:
-                        return None
-                    data = json.loads(row["payload_json"])
-                    return AssessmentResponse.model_validate(data)
-            else:
-                cursor = conn.execute(
-                    "SELECT payload_json FROM assessments WHERE assessment_id = ?",
-                    (assessment_id,),
-                )
-                row = cursor.fetchone()
-                if row:
-                    data = json.loads(row["payload_json"])
-                    return AssessmentResponse.model_validate(data)
-        return None
+            row = conn.execute(
+                "SELECT payload_json FROM assessments WHERE assessment_id = ? AND user_id = ?",
+                (assessment_id, user_id),
+            ).fetchone()
+        if not row:
+            return None
+        return AssessmentResponse.model_validate(json.loads(row["payload_json"]))
 
     def list_all(self, user_id: str | None = None) -> list[AssessmentResponse]:
+        if user_id is None:
+            return []
         with self._get_connection() as conn:
-            if user_id is not None:
-                cursor = conn.execute(
-                    "SELECT payload_json FROM assessments WHERE user_id = ? OR user_id IS NULL ORDER BY created_at DESC",
-                    (user_id,),
-                )
-            else:
-                cursor = conn.execute(
-                    "SELECT payload_json FROM assessments ORDER BY created_at DESC"
-                )
-            rows = cursor.fetchall()
-            results = []
-            for r in rows:
-                try:
-                    data = json.loads(r["payload_json"])
-                    results.append(AssessmentResponse.model_validate(data))
-                except Exception as e:
-                    logger.warning("Failed to deserialize assessment row: %s", e)
-            return results
+            rows = conn.execute(
+                "SELECT payload_json FROM assessments WHERE user_id = ? ORDER BY created_at DESC",
+                (user_id,),
+            ).fetchall()
+        results = []
+        for r in rows:
+            try:
+                results.append(AssessmentResponse.model_validate(json.loads(r["payload_json"])))
+            except Exception as e:
+                logger.warning("Failed to deserialize assessment row: %s", e)
+        return results
 
     def get_latest(self, user_id: str | None = None) -> AssessmentResponse | None:
         records = self.list_all(user_id)

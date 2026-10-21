@@ -95,6 +95,9 @@ class Settings(BaseSettings):
             "http://127.0.0.1:8000",
             "http://172.20.34.119:8000",
         ]
+        if self.environment != "development":
+            # Production: only the explicitly configured allowlist (no hardcoded dev/LAN origins)
+            defaults = []
         seen = set()
         merged: list[str] = []
         for origin in configured + defaults:
