@@ -2,22 +2,18 @@ fastapi>=0.115,<1.0
 uvicorn[standard]>=0.30,<1.0
 pydantic>=2.8,<3.0
 pydantic-settings>=2.4,<3.0
-pytest>=8.0,<9.0
 httpx>=0.27,<1.0
 # Pinned: model artifacts in Agriverse_Models were pickled with scikit-learn 1.6.1
 scikit-learn==1.6.1
 joblib>=1.4,<2.0
-pandas>=2.2,<4.0
+pandas>=2.2,<3.0
 numpy>=2.0,<3.0
 reportlab>=4.0,<6.0
 python-multipart>=0.0.20,<1.0
-# ML runtimes required by existing services (previously missing -> 503s)
-xgboost>=2.1,<4.0          # weather risk + market price models
+# ML runtimes required by active production API endpoints
+xgboost>=2.1,<3.0          # weather risk + market price models
 lightgbm>=4.0,<5.0         # modern market price forecasting models
 pillow>=10.0,<13.0         # plant disease image preprocessing
 keras>=3.0,<4.0            # plant disease .h5 model loading
-tensorflow-cpu>=2.16,<3.0  # keras backend
+tensorflow-cpu>=2.16,<2.19 # stable CPU-only keras backend (prevents nightly/RC builds)
 pypdf>=5.0.0               # soil test PDF report parsing
-# RL Irrigation optimization (high-speed pure NumPy inference active by default; SB3/PyTorch optional)
-# stable-baselines3>=2.0
-# torch>=2.0

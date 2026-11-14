@@ -508,12 +508,12 @@ class MarketPriceService:
             raise RuntimeError(self._load_error) from e
 
     def is_available(self) -> bool:
-        """Check if model artifact exists and loads cleanly."""
-        try:
-            self._ensure_loaded()
+        """Check if model artifact exists and can be loaded."""
+        if self._model is not None:
             return True
-        except Exception:
+        if self._load_error:
             return False
+        return self.improved_model_path.is_file() or self.rollback_model_path.is_file()
 
     def get_supported_catalog(self) -> dict[str, Any]:
         """Return catalog of supported commodities, mandis, and popular presets."""

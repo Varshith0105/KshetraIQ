@@ -1,3 +1,12 @@
+import os
+
+# Limit numerical library thread pools to prevent memory bloat in constrained (512MB) containers
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("VECLIB_MAXIMUM_THREADS", "1")
+os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
+
 import logging
 from typing import Any
 
@@ -55,13 +64,13 @@ from app.services.auth_service import (
     AuthService,
 )
 from app.services.chat_service import ChatService
-from app.services.climate_recommender import ClimateScenarioService
+from app.services.climate_recommender import ClimateScenarioService, get_climate_scenario_service
 from app.services.irrigation_service import irrigation_service
 from app.services.market_price_service import market_price_service
 from app.services.plant_disease_service import plant_disease_service
-from app.services.sustainability_service import SustainabilityService
+from app.services.sustainability_service import SustainabilityService, get_sustainability_service
 from app.services.upload_service import UploadService
-from app.services.weather_risk_service import WeatherRiskService
+from app.services.weather_risk_service import WeatherRiskService, get_weather_risk_service
 
 logger = logging.getLogger("kshetraiq.api")
 from app.services.activity_service import ActivityService
@@ -70,7 +79,7 @@ from app.services.langgraph_orchestrator import SUGGESTIONS_BY_SCREEN
 from app.services.prediction_history_service import PredictionHistoryService
 from app.services.soil_health_service import soil_health_service
 from app.services.weather_service import WeatherService
-from app.services.yield_recommender import CropYieldService
+from app.services.yield_recommender import CropYieldService, get_crop_yield_service
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -100,12 +109,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     chat_service = ChatService(settings)
     upload_service = UploadService(settings)
 
-    # Initialize model adapters
+    # Initialize model adapters (lazy-loaded on demand to preserve startup memory under 512MB)
     model_dir = settings.resolved_model_directory
-    yield_service = CropYieldService(model_dir)
-    climate_service = ClimateScenarioService(model_dir)
-    sustainability_service = SustainabilityService(model_dir)
-    weather_risk_service = WeatherRiskService(model_dir)
+    yield_service = get_crop_yield_service(model_dir)
+    climate_service = get_climate_scenario_service(model_dir)
+    sustainability_service = get_sustainability_service(model_dir)
+    weather_risk_service = get_weather_risk_service(model_dir)
 
     # Run one-time prediction history backfill from existing assessments (in non-test environments)
     if settings.environment != "test":

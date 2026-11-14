@@ -59,9 +59,13 @@ class WeatherRiskService:
         self._feature_names: list[str] = []
         self._is_loaded = False
         self._load_error: str | None = None
-        self._init_model()
 
-    def _init_model(self) -> None:
+    def _ensure_loaded(self) -> None:
+        if self._is_loaded and self._model is not None and self._encoder is not None:
+            return
+        if self._load_error:
+            raise RuntimeError(self._load_error)
+
         model_file = self.model_directory / "weather_risk_xgboost_model.pkl"
         encoder_file = self.model_directory / "weather_risk_label_encoder.pkl"
         features_file = self.model_directory / "weather_risk_feature_names.pkl"
@@ -71,6 +75,7 @@ class WeatherRiskService:
             return
 
         try:
+            import xgboost  # noqa: F401
             self._model = joblib.load(model_file)
             self._encoder = joblib.load(encoder_file)
             self._feature_names = joblib.load(features_file) if features_file.is_file() else []
@@ -82,6 +87,10 @@ class WeatherRiskService:
 
     @property
     def is_ready(self) -> bool:
+        if not self._is_loaded and self._load_error is None:
+            model_file = self.model_directory / "weather_risk_xgboost_model.pkl"
+            encoder_file = self.model_directory / "weather_risk_label_encoder.pkl"
+            return model_file.is_file() and encoder_file.is_file()
         return self._is_loaded and self._model is not None and self._encoder is not None
 
     @property
@@ -89,7 +98,9 @@ class WeatherRiskService:
         return self._load_error
 
     def predict(self, req: WeatherRiskRequest) -> WeatherRiskResponse:
-        if not self.is_ready:
+        self._ensure_loaded()
+        if not (self._is_loaded and self._model is not None and self._encoder is not None):
+            raise RuntimeError(self._load_error or "Weather risk model is not loaded")
             raise RuntimeError(self._load_error or "Weather risk model is not loaded")
 
         month_str = MONTH_NAMES[req.month - 1]
@@ -156,3 +167,12 @@ class WeatherRiskService:
             algorithm="XGBoost Classifier (multi:softprob, 27 features)",
             advisory=advisories.get(pred_label, "Follow local IMD district agro-meteorological bulletins."),
         )
+
+
+_weather_risk_service_cache: dict[Path, WeatherRiskService] = {}
+
+
+def get_weather_risk_service(model_directory: Path) -> WeatherRiskService:
+    if model_directory not in _weather_risk_service_cache:
+        _weather_risk_service_cache[model_directory] = WeatherRiskService(model_directory)
+    return _weather_risk_service_cache[model_directory]

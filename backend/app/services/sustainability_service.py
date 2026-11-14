@@ -20,9 +20,13 @@ class SustainabilityService:
         self._config: dict[str, Any] = {}
         self._is_loaded = False
         self._load_error: str | None = None
-        self._init_config()
 
-    def _init_config(self) -> None:
+    def _ensure_loaded(self) -> None:
+        if self._is_loaded and bool(self._config):
+            return
+        if self._load_error:
+            raise RuntimeError(self._load_error)
+
         config_file = self.model_directory / "sustainability_score_config.pkl"
         if not config_file.is_file():
             self._load_error = f"Sustainability config missing at {config_file}"
@@ -38,6 +42,9 @@ class SustainabilityService:
 
     @property
     def is_ready(self) -> bool:
+        if not self._is_loaded and self._load_error is None:
+            config_file = self.model_directory / "sustainability_score_config.pkl"
+            return config_file.is_file()
         return self._is_loaded and bool(self._config)
 
     @property
@@ -45,7 +52,9 @@ class SustainabilityService:
         return self._load_error
 
     def calculate(self, req: SustainabilityRequest) -> SustainabilityResponse:
-        if not self.is_ready:
+        self._ensure_loaded()
+        if not (self._is_loaded and bool(self._config)):
+            raise RuntimeError(self._load_error or "Sustainability config not loaded")
             raise RuntimeError(self._load_error or "Sustainability config not loaded")
 
         cfg = self._config
@@ -117,3 +126,12 @@ class SustainabilityService:
             },
             advisory_notes=notes,
         )
+
+
+_sustainability_service_cache: dict[Path, SustainabilityService] = {}
+
+
+def get_sustainability_service(model_directory: Path) -> SustainabilityService:
+    if model_directory not in _sustainability_service_cache:
+        _sustainability_service_cache[model_directory] = SustainabilityService(model_directory)
+    return _sustainability_service_cache[model_directory]

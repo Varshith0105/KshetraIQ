@@ -1,0 +1,4 @@
+# Optional ML runtimes for offline training, research, and SB3 RL experimentation
+# Note: In production, high-speed pure NumPy inference is active by default.
+stable-baselines3>=2.0,<3.0
+torch>=2.0,<3.0

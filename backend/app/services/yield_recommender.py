@@ -47,9 +47,13 @@ class CropYieldService:
         self._model: Any = None
         self._is_loaded = False
         self._load_error: str | None = None
-        self._init_model()
 
-    def _init_model(self) -> None:
+    def _ensure_loaded(self) -> None:
+        if self._is_loaded and self._model is not None:
+            return
+        if self._load_error:
+            raise RuntimeError(self._load_error)
+
         model_file = self.model_directory / "crop_yield_prediction_model.pkl"
         if not model_file.is_file():
             self._load_error = f"Model artifact missing at {model_file}"
@@ -65,6 +69,9 @@ class CropYieldService:
 
     @property
     def is_ready(self) -> bool:
+        if not self._is_loaded and self._load_error is None:
+            model_file = self.model_directory / "crop_yield_prediction_model.pkl"
+            return model_file.is_file()
         return self._is_loaded and self._model is not None
 
     @property
@@ -72,7 +79,9 @@ class CropYieldService:
         return self._load_error
 
     def predict(self, req: CropYieldRequest) -> CropYieldResponse:
-        if not self.is_ready:
+        self._ensure_loaded()
+        if not (self._is_loaded and self._model is not None):
+            raise RuntimeError(self._load_error or "Yield model is not loaded")
             raise RuntimeError(self._load_error or "Yield model is not loaded")
 
         clean_crop_key = req.crop.strip().lower()
@@ -120,4 +129,13 @@ class CropYieldService:
             },
             disclaimer=disclaimer,
         )
+
+
+_yield_service_cache: dict[Path, CropYieldService] = {}
+
+
+def get_crop_yield_service(model_directory: Path) -> CropYieldService:
+    if model_directory not in _yield_service_cache:
+        _yield_service_cache[model_directory] = CropYieldService(model_directory)
+    return _yield_service_cache[model_directory]
 

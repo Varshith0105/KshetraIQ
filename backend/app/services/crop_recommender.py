@@ -42,13 +42,35 @@ class CropRecommender:
     def __init__(self, model_directory: Path) -> None:
         self.model_directory = model_directory
         self._model: Any = None
-        self._feature_names: list[str] = []
-        self._classes: list[str] = []
+        self._feature_names_list: list[str] = []
+        self._classes_list: list[str] = []
         self._is_loaded = False
         self._load_error: str | None = None
-        self._init_model()
 
-    def _init_model(self) -> None:
+    @property
+    def _classes(self) -> list[str]:
+        self._ensure_loaded()
+        return self._classes_list
+
+    @_classes.setter
+    def _classes(self, val: list[str]) -> None:
+        self._classes_list = val
+
+    @property
+    def _feature_names(self) -> list[str]:
+        self._ensure_loaded()
+        return self._feature_names_list
+
+    @_feature_names.setter
+    def _feature_names(self, val: list[str]) -> None:
+        self._feature_names_list = val
+
+    def _ensure_loaded(self) -> None:
+        if self._is_loaded and self._model is not None:
+            return
+        if self._load_error:
+            raise RuntimeError(self._load_error)
+
         model_file = self.model_directory / "crop_recommendation_model.pkl"
         features_file = self.model_directory / "crop_feature_names.pkl"
 
@@ -73,6 +95,9 @@ class CropRecommender:
 
     @property
     def is_available(self) -> bool:
+        if not self._is_loaded and self._load_error is None:
+            model_file = self.model_directory / "crop_recommendation_model.pkl"
+            return model_file.is_file()
         return self._is_loaded and self._model is not None
 
     @property
@@ -89,7 +114,8 @@ class CropRecommender:
         ph: float,
         rainfall: float,
     ) -> CropPredictionDetail:
-        if not self.is_available:
+        self._ensure_loaded()
+        if not (self._is_loaded and self._model is not None):
             raise RuntimeError(self._load_error or "Crop recommendation model is not loaded.")
 
         input_data = pd.DataFrame(

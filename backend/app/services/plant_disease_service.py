@@ -171,13 +171,21 @@ class PlantDiseaseService:
             logger.exception("Plant disease model loading failed: %s", e)
             raise RuntimeError(self._load_error) from e
 
+    @property
+    def is_loaded(self) -> bool:
+        return self._model is not None
+
+    @property
+    def load_error(self) -> str | None:
+        return self._load_error
+
     def is_available(self) -> bool:
         """Check if model artifact exists and can be loaded."""
-        try:
-            self._ensure_loaded()
+        if self._model is not None:
             return True
-        except Exception:
+        if self._load_error:
             return False
+        return self.artifact_path.is_file()
 
     def predict_image(self, image_bytes: bytes, filename: str = "upload.jpg") -> dict[str, Any]:
         """Preprocess uploaded leaf photograph and run deep CNN inference."""
