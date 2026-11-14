@@ -2,7 +2,8 @@
 setlocal
 title KshetraIQ Application Launcher
 
-set "ROOT_DIR=%~dp0"
+set "SCRIPT_DIR=%~dp0"
+for %%I in ("%SCRIPT_DIR%..") do set "ROOT_DIR=%%~fI\"
 set "MODE=dev"
 if /i "%~1"=="prod" set "MODE=prod"
 if /i "%~1"=="production" set "MODE=prod"

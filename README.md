@@ -8,16 +8,18 @@
 **An end-to-end multi-modal agricultural decision-support system synthesizing 8 calibrated AI/ML models, physical ICAR agronomic rules, Open-Meteo live weather data, pan-India APMC mandi forecasting, and bilingual (English/తెలుగు) farm advisory.**
 
 <p>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge" alt="License: MIT" /></a>
   <img src="https://img.shields.io/badge/Frontend-Next.js%2015-black?style=for-the-badge&logo=next.js&logoColor=white" alt="Next.js 15" />
   <img src="https://img.shields.io/badge/UI-React%2019%20%7C%20TailwindCSS-38BDF8?style=for-the-badge&logo=react&logoColor=white" alt="React 19" />
   <img src="https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" />
   <img src="https://img.shields.io/badge/AI%2FML-PyTorch%20%7C%20TensorFlow%20%7C%20LightGBM-FF6F00?style=for-the-badge" alt="AI / ML" />
   <img src="https://img.shields.io/badge/Tests-159%20Passed%20(100%25)-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="Tests 159 Passed" />
   <img src="https://img.shields.io/badge/Localization-English%20%26%20తెలుగు-blue?style=for-the-badge" alt="English & Telugu" />
+  <img src="https://img.shields.io/badge/Security-ICAR%20Guarded-red?style=for-the-badge" alt="Security Guarded" />
   <img src="https://img.shields.io/badge/Status-Production%20Ready-success?style=for-the-badge" alt="Production Ready" />
 </p>
 
-[Overview](#-overview) · [Core Capabilities](#-core-capabilities) · [Machine Learning Matrix](#-machine-learning--agronomic-engineering-matrix) · [System Architecture](#-system-architecture) · [API Endpoints](#-api-endpoints--service-contracts) · [Quick Start](#-quick-start--installation) · [Configuration](#-configuration--environment-variables) · [Testing & Audit](#-testing-verification--model-audit) · [Security](#-security-privacy--safety-guardrails) · [Documentations](#-documentations-index)
+[Overview](#-overview) · [Core Capabilities](#-core-capabilities) · [Machine Learning Matrix](#-machine-learning--agronomic-engineering-matrix) · [System Architecture](#-system-architecture) · [API Endpoints](#-api-endpoints--service-contracts) · [Quick Start (Running_Project)](#-quick-start--installation) · [Configuration](#-configuration--environment-variables) · [Testing & Verification](#-testing-verification--model-audit) · [Security & Trust](#-security-privacy--safety-guardrails) · [Documentations](#-documentations-index) · [License](#-license)
 
 </div>
 
@@ -25,13 +27,14 @@
 
 ## 📌 Overview
 
-**KshetraIQ** is a full-stack, AI-powered agricultural decision platform designed specifically for Indian agricultural ecosystems, with dedicated localization for Andhra Pradesh and Telangana farming communities. It bridges the critical divide between raw machine learning research and actionable farm management by enforcing strict agronomic physical constraints, multi-candidate uncertainty quantification, and zero-hallucination policies.
+**KshetraIQ** is an enterprise-grade agricultural intelligence platform built for Indian agro-ecological zones, featuring dedicated bilingual support for Andhra Pradesh and Telangana farming communities. It bridges raw machine learning research and actual field decision-making by enforcing strict physical agronomic constraints, multi-candidate uncertainty quantification, and a zero-hallucination policy.
 
-Instead of generic chatbot output or uncalibrated single-point estimates, KshetraIQ operates a **dual-engine architecture**:
-1. **Calibrated Machine Learning Cluster:** 8 specialized predictive and diagnostic models covering crop classification, yield regression, climate shocks, eco-efficiency, meteorological risk, price dynamics, reinforcement learning irrigation, and foliar disease computer vision.
-2. **Deterministic Physical Safety Net:** Rigorous agronomic guardrails derived directly from ICAR (Indian Council of Agricultural Research) and ANGRAU (Acharya N.G. Ranga Agricultural University) agronomy manuals that supersede statistical outputs when sensor data is missing or out-of-bounds.
+Instead of ungrounded generative predictions or uncalibrated point estimates, KshetraIQ operates a **dual-engine architecture**:
+1. **Calibrated Machine Learning Cluster:** 8 specialized predictive and diagnostic models covering crop recommendation, yield forecasting, climate shock simulation, eco-efficiency scoring, meteorological risk, price dynamics, reinforcement learning irrigation scheduling, and foliar pathology computer vision.
+2. **Deterministic Physical Safety Net:** Rigorous agronomic guardrails derived directly from ICAR (Indian Council of Agricultural Research) and ANGRAU (Acharya N.G. Ranga Agricultural University) agronomy manuals that override statistical outputs when sensor data is missing or out-of-bounds.
 
-> **Integrity Guarantee:** KshetraIQ prohibits prediction fabrication. Incomplete soil nutrient parameters, unsupported crop-mandi combinations, or degraded sensors return explicit explanatory notes and request missing parameters rather than synthesizing hallucinated baselines.
+> [!IMPORTANT]
+> **Integrity Guarantee (Zero Fabrication):** KshetraIQ prohibits prediction fabrication. Incomplete soil nutrient parameters, unsupported crop-mandi combinations, or degraded sensors return an explicit `needs_input` state with clear guidance rather than synthesizing hallucinated baselines.
 
 ---
 
@@ -48,7 +51,7 @@ Instead of generic chatbot output or uncalibrated single-point estimates, Kshetr
 
 ## 🌾 Core Capabilities
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
 │                                   KSHETRAIQ PLATFORM MODULES                                     │
 ├──────────────────────────────┬──────────────────────────────┬────────────────────────────────────┤
@@ -188,24 +191,23 @@ All REST endpoints are documented with OpenAPI schemas at `http://127.0.0.1:8000
 
 ---
 
-### Option A: One-Click Startup (Windows)
+### Option A: One-Click Execution via `Running_Project/` (Recommended)
 
-The repository provides automated PowerShell/Batch launchers that check prerequisites, verify ports, and initialize both servers:
+All automated execution scripts are neatly organized in the [`Running_Project/`](Running_Project/) directory:
 
 ```cmd
-:: Run from repository root
-RUN_KSHETRAIQ.bat
+:: 1. Launch both FastAPI Backend and Next.js Frontend
+Running_Project\RUN_KSHETRAIQ.bat
+
+:: 2. Run Comprehensive System Health & Port Diagnostics
+Running_Project\CHECK_KSHETRAIQ.bat
+
+:: 3. Cleanly Stop All Running Services and Release Ports
+Running_Project\STOP_KSHETRAIQ.bat
 ```
 
-To run deep system health diagnostics:
-```cmd
-CHECK_KSHETRAIQ.bat
-```
-
-To stop all active listeners:
-```cmd
-STOP_KSHETRAIQ.bat
-```
+> [!TIP]
+> The scripts automatically verify port availability (`8000` & `3000`), validate the Python virtual environment, install missing frontend packages, and launch both services in synchronized terminal windows.
 
 ---
 
@@ -275,10 +277,10 @@ KSHETRAIQ_SQLITE_PATH=backend/.tmp/kshetraiq.db
 LLM_PROVIDER=openai/gpt-oss-120b
 
 # ── AGMARKNET / data.gov.in Real-Time Feed (Optional) ─────────────────────────
-# When omitted, system uses verified 2023-12-30 AGMARKNET benchmark observations
+# When omitted, system uses verified AGMARKNET benchmark observations
 DATA_GOV_IN_API_KEY=your-data-gov-in-api-key
 
-# ── Upload Limits & CORS ──────────────────────────────────────────────────────
+# ── Upload Limits & CORS Security ─────────────────────────────────────────────
 KSHETRAIQ_MAX_UPLOAD_BYTES=10485760
 KSHETRAIQ_CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 ```
@@ -287,7 +289,7 @@ KSHETRAIQ_CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 
 ## 🧪 Testing, Verification & Model Audit
 
-KshetraIQ enforces 100% automated test coverage across all microservices, machine learning inferences, and security policies.
+KshetraIQ enforces 100% automated test coverage across microservices, machine learning inferences, and security guardrails.
 
 ### 1. Run Complete Automated Test Suite (159 Tests)
 ```powershell
@@ -340,53 +342,39 @@ ALL 8 ML MODELS AUDITED: PASS
 
 ## 🔒 Security, Privacy & Safety Guardrails
 
-1. **Per-User Data Isolation:** Farm assessments, PDF reports, and leaf photographs require authenticated sessions (`/auth/me`) and are strictly scoped by user ID.
-2. **Safe Upload Pipeline:** Uploaded leaf images undergo magic-byte file signature validation, strict MIME allowlisting (`image/jpeg`, `image/png`, `image/webp`), and bounded chunked streaming (capped at 10 MB) to prevent denial-of-service memory exhaustion.
-3. **No Blind Hallucination:** Models never output fabricated predictions when required features are missing. The system raises structured validation errors explaining what parameters are missing.
-4. **Physical Agronomic Clamp:** Soil pH outside the physically viable range ($3.0 \le \text{pH} \le 10.0$) or negative moisture readings trigger immediate rejection.
+Security and responsible AI governance are embedded across every layer of the KshetraIQ architecture. For the complete operational security policy, see [`Documentations/SECURITY.md`](Documentations/SECURITY.md).
 
----
-
-## 🩺 Troubleshooting FAQ
-
-<details>
-<summary><strong>1. Python reports "No Python at 'C:\Users\varsh\...'"</strong></summary>
-
-The `.venv/pyvenv.cfg` file contains an absolute path from the originating machine. Open `.venv/pyvenv.cfg` and set `home` and `executable` to your local Python 3.11 path (e.g., `C:\Users\<YOUR_USER>\AppData\Local\Programs\Python\Python311`).
-</details>
-
-<details>
-<summary><strong>2. PowerShell blocks npm ("running scripts is disabled on this system")</strong></summary>
-
-Windows PowerShell blocks `.ps1` script execution by default. Use `npm.cmd` explicitly in all commands:
-```powershell
-npm.cmd run dev
-npm.cmd run build
+```text
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                 KSHETRAIQ DEFENSE-IN-DEPTH                                  │
+├────────────────────────────────┬────────────────────────────┬───────────────────────────────┤
+│ 🛡️ Zero-Hallucination AI       │ 🔐 Cryptographic Auth      │ 📦 Media Upload & DoS Shield  │
+│ • Deterministic ICAR Bounds    │ • Bcrypt Salted Passwords  │ • Magic-Byte MIME Validation  │
+│ • Rejection of Missing Inputs  │ • JWT in HttpOnly Cookies  │ • 10 MB Stream Enforced Cap   │
+│ • Physical Chemistry Clamping  │ • Multi-Tenant Isolation   │ • Fixed-Tensor Image Sizing   │
+└────────────────────────────────┴────────────────────────────┴───────────────────────────────┘
 ```
-</details>
 
-<details>
-<summary><strong>3. Port 8000 or 3000 is already in use</strong></summary>
+### 1. Agronomic Physical Guardrails & Zero Hallucination
+- **Physical Chemistry Clamping:** Soil parameters are constrained to valid agronomic boundaries ($3.0 \le \text{pH} \le 10.0$, non-negative N-P-K concentrations, valid soil moisture percent). Out-of-bounds readings are rejected with explicit corrective guidance.
+- **No Fabricated Outputs:** Incomplete soil laboratory tests or unsupported crop-mandi combinations return structured `needs_input` operational status codes rather than unverified machine hallucinations.
 
-Run the included shutdown utility:
-```cmd
-STOP_KSHETRAIQ.bat
-```
-Or release the ports manually:
-```powershell
-Get-NetTCPConnection -LocalPort 8000, 3000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
-```
-</details>
+### 2. Authentication, Session Security & Tenant Isolation
+- **Cryptographic Password Storage:** Passwords are never stored in plaintext and are salted and hashed using **Bcrypt** (`passlib`).
+- **HttpOnly Cookie Transport:** Authentication tokens are stored in `HttpOnly`, `SameSite=Lax`, and `Secure` cookies, safeguarding against Cross-Site Scripting (XSS) and token theft.
+- **Strict Tenant Scoping:** Assessments, PDF dossiers, and diagnosis logs require active user sessions and are isolated by verified `user_id`. Direct object references (IDOR) are strictly blocked.
 
-<details>
-<summary><strong>4. Missing Git LFS model files</strong></summary>
+### 3. Media Upload & Denial-of-Service (DoS) Shield
+- **Binary Magic-Byte Inspection:** Leaf uploads undergo magic-byte signature analysis (`\xFF\xD8\xFF` for JPEG, `\x89PNG` for PNG, `RIFF` for WebP) to prevent arbitrary executable payload uploads.
+- **Chunked Stream Quota:** Image uploads are throttled and capped at a maximum of 10 MB (`KSHETRAIQ_MAX_UPLOAD_BYTES=10485760`), preventing memory exhaustion.
+- **Tensor Sandboxing:** Uploaded photographs are resampled to fixed $(160 \times 160 \times 3)$ tensors before inference, protecting runtime memory buffers.
 
-Ensure Git LFS is installed and download the weight artifacts:
-```powershell
-git lfs install
-git lfs pull
-```
-</details>
+### 4. Network Hardening & Zero Committed Secrets
+- **CORS Allowlist Enforcement:** Browser access is restricted to verified origin endpoints (`http://localhost:3000`, `http://127.0.0.1:3000`). Wildcard cross-origin headers are disallowed.
+- **Secret Scanning Compliance:** No active API keys or credentials reside in source code or version control. All external services load keys dynamically through validated environment variables.
+
+### 5. Vulnerability Disclosure Policy
+To report any security concern or potential vulnerability, review our [Security Disclosure Policy](Documentations/SECURITY.md) or submit a private report via [GitHub Security Advisories](https://github.com/Varshith0105/KshetraIQ/security/advisories/new).
 
 ---
 
@@ -419,16 +407,19 @@ KshetraIQ/
 │   │   ├── login/                 # Farmer authentication & session view
 │   │   └── page.tsx               # High-conversion landing page
 │   └── package.json               # Frontend dependencies & build scripts
-├── Documentations/                # Consolidated project documentation library
+├── Documentations/                # Comprehensive documentation library
 │   ├── ARCHITECTURE.md            # Microservice & agent architecture specification
 │   ├── COMPLETE_MODEL_INVENTORY.md# Detailed mathematical breakdown of all 8 models
 │   ├── RUN_GUIDE.md               # Runtime operational reference guide
+│   ├── SECURITY.md                # Security architecture & vulnerability disclosure policy
 │   ├── CHATBOT_EVALUATION_REPORT.md
 │   ├── MARKET_INSIGHTS_FINAL_REPORT.md
 │   └── MODEL_VERIFICATION_REPORT.md
-├── CHECK_KSHETRAIQ.bat            # One-click diagnostic health checker
-├── RUN_KSHETRAIQ.bat              # One-click dual-server launcher
-├── STOP_KSHETRAIQ.bat             # Clean port & process terminator
+├── Running_Project/               # One-click execution & diagnostic scripts
+│   ├── CHECK_KSHETRAIQ.bat        # System health & diagnostic checker
+│   ├── RUN_KSHETRAIQ.bat          # Dual-service application launcher
+│   └── STOP_KSHETRAIQ.bat         # Clean port & process terminator
+├── LICENSE                        # MIT Open Source License
 ├── package.json                   # Root monorepo workspace scripts
 └── README.md                      # Primary project overview & documentation
 ```
@@ -437,19 +428,33 @@ KshetraIQ/
 
 ## 📚 Documentations Index
 
-All specialized reports, mathematical audits, and system specifications are organized inside [`Documentations/`](Documentations/):
+All specialized engineering reports, mathematical audits, and system specifications are organized inside [`Documentations/`](Documentations/):
 
 | Documentation Document | Primary Focus & Coverage |
 |:---|:---|
 | [**Architecture Overview**](Documentations/ARCHITECTURE.md) | Technical blueprint of microservices, dataflows, and security boundaries |
 | [**Complete Model Inventory**](Documentations/COMPLETE_MODEL_INVENTORY.md) | Mathematical formulation, features, and performance metrics for all 8 models |
 | [**System Run Guide**](Documentations/RUN_GUIDE.md) | Step-by-step production run guide for developers and system administrators |
+| [**Security Policy & Trust**](Documentations/SECURITY.md) | In-depth security architecture, threat model, and vulnerability reporting process |
 | [**Chatbot Evaluation Report**](Documentations/CHATBOT_EVALUATION_REPORT.md) | 40-question agronomic benchmark test results in English & Telugu |
 | [**Market Insights Final Report**](Documentations/MARKET_INSIGHTS_FINAL_REPORT.md) | 26.4M APMC mandi dataset review, LightGBM tuning, and horizon backtest |
 | [**Model Verification Report**](Documentations/MODEL_VERIFICATION_REPORT.md) | Comprehensive audit of model inputs, bounds, and inference validity |
 | [**Market Data Verification**](Documentations/MARKET_DATA_VERIFICATION_REPORT.md) | Audit of data.gov.in AGMARKNET live streaming and offline benchmarks |
 | [**PDF Generation Report**](Documentations/PDF_VERIFICATION_REPORT.md) | Verification of ReportLab 2-step confirmed bilingual dossier synthesis |
 | [**Final Recovery & Integrity Report**](Documentations/FINAL_RECOVERY_REPORT.md) | Audit trail of database repairs, schema alignment, and zero-fabrication rules |
+
+---
+
+## 📄 License
+
+Distributed under the **MIT License**. This permits free academic, commercial, and research use provided the copyright notice and disclaimers are preserved.
+
+For full license terms, refer to the [`LICENSE`](LICENSE) file in the repository root.
+
+```text
+MIT License
+Copyright (c) 2026 Varshith (KshetraIQ)
+```
 
 ---
 
@@ -466,6 +471,6 @@ All specialized reports, mathematical audits, and system specifications are orga
 
 **KshetraIQ — Empowering Indian Agriculture with Precision, Integrity, and Science.**
 
-[View Repository](https://github.com/Varshith0105/KshetraIQ) · [API Documentation](http://127.0.0.1:8000/docs) · [Report an Issue](https://github.com/Varshith0105/KshetraIQ/issues)
+[View Repository](https://github.com/Varshith0105/KshetraIQ) · [API Documentation](http://127.0.0.1:8000/docs) · [Report an Issue](https://github.com/Varshith0105/KshetraIQ/issues) · [Security Policy](Documentations/SECURITY.md)
 
 </div>
