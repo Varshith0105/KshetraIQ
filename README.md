@@ -19,7 +19,7 @@
   <img src="https://img.shields.io/badge/Status-Production%20Ready-success?style=for-the-badge" alt="Production Ready" />
 </p>
 
-[Overview](#-overview) · [Core Capabilities](#-core-capabilities) · [Machine Learning Matrix](#-machine-learning--agronomic-engineering-matrix) · [System Architecture](#-system-architecture) · [API Endpoints](#-api-endpoints--service-contracts) · [Quick Start (Running_Project)](#-quick-start--installation) · [Configuration](#-configuration--environment-variables) · [Testing & Verification](#-testing-verification--model-audit) · [Security & Trust](#-security-privacy--safety-guardrails) · [Documentations](#-documentations-index) · [License](#-license)
+[Overview](#-overview) · [Core Capabilities](#-core-capabilities) · [Machine Learning Matrix](#-machine-learning--agronomic-engineering-matrix) · [System Architecture](#-system-architecture) · [API Endpoints](#-api-endpoints--service-contracts) · [Quick Start (Running_Project)](#-quick-start--installation) · [Configuration](#-configuration--environment-variables) · [Testing & Verification](#-testing-verification--model-audit) · [Security & Governance](#-security-trust--governance-security-readme) · [Documentations](#-documentations-index) · [License](#-license)
 
 </div>
 
@@ -51,24 +51,16 @@ Instead of ungrounded generative predictions or uncalibrated point estimates, Ks
 
 ## 🌾 Core Capabilities
 
-```text
-┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                   KSHETRAIQ PLATFORM MODULES                                     │
-├──────────────────────────────┬──────────────────────────────┬────────────────────────────────────┤
-│ 🧪 Soil Health & Chemistry   │ 🌾 Precision Crop Selection  │ 💧 Autonomous Smart Irrigation     │
-│ • 5-Band Diagnostic Scoring  │ • 22-Crop Multi-Candidate RF │ • PPO Actor-Critic RL Policy       │
-│ • NPK Stoichiometric Ratios  │ • Ranked Probability Outputs │ • ICAR Physical Water Budgeting    │
-│ • pH & Gypsum/Lime Advisory  │ • Soil-Climatic Match Score  │ • Active Root Moisture Protection  │
-├──────────────────────────────┼──────────────────────────────┼────────────────────────────────────┤
-│ 📈 Mandi Market Forecasting  │ 🔬 Computer Vision Pathology │ 🌦️ Micro-Climate Intelligence     │
-│ • 5,800+ Pan-India Mandis    │ • ResNet-50 Foliar Classifier│ • Real-Time Open-Meteo API Sync    │
-│ • 390+ Agricultural Crops    │ • 23 Plant Disease Classes   │ • Meteorological Hazard Scoring    │
-│ • Hybrid Persistence Horizon │ • Cultural & Chemical Cures  │ • 7-Day Rainfall & Moisture Shock  │
-├──────────────────────────────┴──────────────────────────────┴────────────────────────────────────┤
-│ 🤖 Context-Aware Rythu AI Multi-Agent Chatbot (LangGraph + Screen Grounding + English/తెలుగు)    │
-│ 📄 2-Step Confirmed Official Bilingual PDF Farm Advisory Dossier (ReportLab)                     │
-└──────────────────────────────────────────────────────────────────────────────────────────────────┘
-```
+| Module | Core Capabilities & Scope | Algorithmic / Agronomic Engine |
+|:---|:---|:---|
+| 🧪 **Soil Health & Chemistry** | • 5-Band Diagnostic Scoring<br/>• NPK Stoichiometric Ratios<br/>• pH, Gypsum & Lime Soil Advisory | ICAR Stoichiometric Models & ANGRAU Regional Chemistry |
+| 🌾 **Precision Crop Selection** | • 22-Crop Multi-Candidate Ranking<br/>• Full Probability Distributions<br/>• Soil-Climatic Agronomic Compatibility | Calibrated Random Forest Classifier (**99.3% Accuracy**) |
+| 💧 **Autonomous Smart Irrigation** | • Volumetric Root Moisture Optimization<br/>• Dynamic Water Budgeting per Acre<br/>• Stress & Wilting Point Protection | Deep Reinforcement Learning (PPO Policy) + ICAR Hydrology |
+| 📈 **Mandi Market Forecasting** | • 5,800+ Mandis & 390+ Commodities<br/>• Dynamic Forecasting Horizon ($h \le 14$ days)<br/>• Verified AGMARKNET Spot Persistence | LightGBM Regressor (500 Trees) + Time-Series Persistence |
+| 🔬 **Computer Vision Pathology** | • 23 Plant Disease Classes across 5 Species<br/>• Foliar Blight & Lesion Recognition<br/>• Organic & Chemical Remediation Recipes | Deep Convolutional Neural Network (**ResNet-50**, 160×160 RGB) |
+| 🌦️ **Micro-Climate Intelligence** | • Real-Time Geocoded Open-Meteo Sync<br/>• 4-Class Meteorological Hazard Prediction<br/>• 7-Day Rainfall & Moisture Shock Modeling | XGBoost Multi-Class Softprob Classifier (**87.4% Accuracy**) |
+| 🤖 **Rythu AI Multi-Agent Chatbot** | • State-Aware Screen Grounding & Context<br/>• Native Telugu (తెలుగు) & English Dialects<br/>• Physical Fact Verification Guardrails | LangGraph Multi-Agent Orchestration & Context Engine |
+| 📄 **Official Bilingual Dossier** | • Two-Step Confirmed Report Synthesis<br/>• Complete Farm Soil, Crop & Mandi Audit<br/>• Downloadable Print-Ready Advisory | ReportLab PDF Engine with Localized Typography |
 
 ---
 
@@ -340,41 +332,75 @@ ALL 8 ML MODELS AUDITED: PASS
 
 ---
 
-## 🔒 Security, Privacy & Safety Guardrails
+## 🔒 Security, Trust & Governance (Security README)
 
-Security and responsible AI governance are embedded across every layer of the KshetraIQ architecture. For the complete operational security policy, see [`Documentations/SECURITY.md`](Documentations/SECURITY.md).
+Security and responsible AI governance are foundational pillars of the KshetraIQ platform. Agricultural recommendations directly influence farm livelihoods, soil viability, and economic stability. Therefore, KshetraIQ couples strict defensive cyber controls with deterministic agronomic physical safety boundaries.
 
-```text
-┌─────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                 KSHETRAIQ DEFENSE-IN-DEPTH                                  │
-├────────────────────────────────┬────────────────────────────┬───────────────────────────────┤
-│ 🛡️ Zero-Hallucination AI       │ 🔐 Cryptographic Auth      │ 📦 Media Upload & DoS Shield  │
-│ • Deterministic ICAR Bounds    │ • Bcrypt Salted Passwords  │ • Magic-Byte MIME Validation  │
-│ • Rejection of Missing Inputs  │ • JWT in HttpOnly Cookies  │ • 10 MB Stream Enforced Cap   │
-│ • Physical Chemistry Clamping  │ • Multi-Tenant Isolation   │ • Fixed-Tensor Image Sizing   │
-└────────────────────────────────┴────────────────────────────┴───────────────────────────────┘
-```
+> [!NOTE]
+> For the standalone operational security policy, threat model, and PGP keys, consult [`Documentations/SECURITY.md`](Documentations/SECURITY.md).
 
-### 1. Agronomic Physical Guardrails & Zero Hallucination
-- **Physical Chemistry Clamping:** Soil parameters are constrained to valid agronomic boundaries ($3.0 \le \text{pH} \le 10.0$, non-negative N-P-K concentrations, valid soil moisture percent). Out-of-bounds readings are rejected with explicit corrective guidance.
-- **No Fabricated Outputs:** Incomplete soil laboratory tests or unsupported crop-mandi combinations return structured `needs_input` operational status codes rather than unverified machine hallucinations.
+---
 
-### 2. Authentication, Session Security & Tenant Isolation
-- **Cryptographic Password Storage:** Passwords are never stored in plaintext and are salted and hashed using **Bcrypt** (`passlib`).
-- **HttpOnly Cookie Transport:** Authentication tokens are stored in `HttpOnly`, `SameSite=Lax`, and `Secure` cookies, safeguarding against Cross-Site Scripting (XSS) and token theft.
-- **Strict Tenant Scoping:** Assessments, PDF dossiers, and diagnosis logs require active user sessions and are isolated by verified `user_id`. Direct object references (IDOR) are strictly blocked.
+### Supported Versions & Maintenance
 
-### 3. Media Upload & Denial-of-Service (DoS) Shield
-- **Binary Magic-Byte Inspection:** Leaf uploads undergo magic-byte signature analysis (`\xFF\xD8\xFF` for JPEG, `\x89PNG` for PNG, `RIFF` for WebP) to prevent arbitrary executable payload uploads.
-- **Chunked Stream Quota:** Image uploads are throttled and capped at a maximum of 10 MB (`KSHETRAIQ_MAX_UPLOAD_BYTES=10485760`), preventing memory exhaustion.
-- **Tensor Sandboxing:** Uploaded photographs are resampled to fixed $(160 \times 160 \times 3)$ tensors before inference, protecting runtime memory buffers.
+Security fixes and model integrity updates are backported to the following active branches:
 
-### 4. Network Hardening & Zero Committed Secrets
-- **CORS Allowlist Enforcement:** Browser access is restricted to verified origin endpoints (`http://localhost:3000`, `http://127.0.0.1:3000`). Wildcard cross-origin headers are disallowed.
-- **Secret Scanning Compliance:** No active API keys or credentials reside in source code or version control. All external services load keys dynamically through validated environment variables.
+| Version | Release Status | Security Support | Maintenance Notes |
+|:---|:---:|:---:|:---|
+| **v1.0.x** (`main`) | Production Current | Supported | Continuous automated dependency audits & model drift evaluation |
+| **< 1.0.0** | Deprecated | Unsupported | Legacy prototype branches — upgrade to `main` immediately |
 
-### 5. Vulnerability Disclosure Policy
-To report any security concern or potential vulnerability, review our [Security Disclosure Policy](Documentations/SECURITY.md) or submit a private report via [GitHub Security Advisories](https://github.com/Varshith0105/KshetraIQ/security/advisories/new).
+---
+
+### Defense-in-Depth Architecture Matrix
+
+| Security Layer | Defensive Vector | Technical Implementation | Threat Mitigated |
+|:---|:---|:---|:---|
+| 🛡️ **Agronomic Physical Safety** | Zero-Hallucination Guardrails | Deterministic ICAR/ANGRAU parameter clamping; mandatory `needs_input` rejections | Model hallucination, crop failure, chemical over-fertilization |
+| 🔐 **Authentication & Session** | Cryptographic Salt & JWT | Passwords hashed with **Bcrypt**; tokens transported in `HttpOnly`, `SameSite=Lax`, `Secure` cookies | Credential theft, Session Hijacking, Cross-Site Scripting (XSS) |
+| 🏢 **Multi-Tenant Authorization** | Scoped User ID Isolation | All farm queries, assessments, and PDF dossier routes require ownership verification | Insecure Direct Object References (IDOR), unauthorized data leaks |
+| 📦 **Media Upload Shield** | Magic-Byte MIME Analysis | Header signature inspection (`\xFF\xD8\xFF`, `\x89PNG`, `RIFF`); streaming cap at 10 MB | Malicious shell upload, buffer overflow, server memory exhaustion |
+| 🌐 **API Gateway & Transport** | CORS & Pydantic Sanitization | Explicit domain whitelist (`localhost:3000`); Pydantic v2 strict typing on all payloads | Cross-Origin Request Forgery (CSRF), SQL/Command injection |
+| 🔑 **Secrets Management** | Zero-Committed-Secrets Policy | Credentials loaded solely from `.env`; automated push-protection scans | API key compromise, cloud provider credential exposure |
+
+---
+
+### Core Security & Safety Specifications
+
+#### 1. Zero-Fabrication Agronomic Guardrails
+Unlike generic generative conversational agents, KshetraIQ strictly prohibits speculative generation:
+- **Physical Chemistry Boundaries:** Soil readings are verified against physiological limits ($3.0 \le \text{pH} \le 10.0$, non-negative N-P-K concentrations, valid soil moisture percent). Out-of-bounds readings raise immediate validation exceptions.
+- **Deterministic Rejection:** If mandatory soil laboratory parameters or APMC market arrivals are unavailable, the platform issues a structured `needs_input` response specifying missing variables, rather than fabricating ungrounded estimates.
+
+#### 2. Authentication & Data Sovereignty
+- **Salted Bcrypt Hashing:** User passwords are encrypted with bcrypt utilizing adaptive work-factor salting via `passlib`.
+- **HttpOnly Secure Tokens:** Authorization tokens are stored in `HttpOnly`, `SameSite=Lax`, and `Secure` cookies, safeguarding against client-side script inspection.
+- **User Record Scoping:** Farm soil records, AI advisory histories, and ReportLab PDF dossiers are isolated per farmer account. Cross-tenant access is blocked at the service layer.
+
+#### 3. Media Ingestion & DoS Defense
+- **Binary Header Validation:** Uploaded leaf pathology images are validated at the byte level to match permitted image MIME types (`image/jpeg`, `image/png`, `image/webp`).
+- **Quota Enforced Streaming:** File transfers are bounded by `KSHETRAIQ_MAX_UPLOAD_BYTES=10485760` (10 MB). Exceeding transfers are terminated with HTTP 413.
+- **Fixed-Tensor Normalization:** Images are pre-processed and converted to fixed $(160 \times 160 \times 3)$ tensors before entering the ResNet-50 inference pipeline, preventing malicious memory allocation attacks.
+
+---
+
+### Vulnerability Disclosure Policy & Response SLAs
+
+We actively welcome vulnerability reports from researchers, developers, and agricultural partners. Please adhere to responsible disclosure principles.
+
+#### How to Report a Vulnerability
+1. **Private Submissions Only:** Never open a public GitHub Issue for security vulnerabilities.
+2. Submit your advisory via **[GitHub Security Advisories](https://github.com/Varshith0105/KshetraIQ/security/advisories/new)** or email `varshith.dev@example.com` with subject `[SECURITY] KshetraIQ Vulnerability Report`.
+3. Provide full reproduction steps, affected endpoints, and an evaluation of potential impact.
+
+#### Response & Remediation Timelines
+
+| Severity Level | Initial Acknowledgment | Triage & Assessment | Patch Release SLA |
+|:---|:---:|:---:|:---:|
+| 🔴 **Critical Severity** (CVSS 9.0–10.0) | Within 24 Hours | Within 48 Hours | **7 Calendar Days** |
+| 🟠 **High Severity** (CVSS 7.0–8.9) | Within 24 Hours | Within 72 Hours | **14 Calendar Days** |
+| 🟡 **Medium Severity** (CVSS 4.0–6.9) | Within 48 Hours | Within 5 Business Days | **30 Calendar Days** |
+| 🟢 **Low Severity** (CVSS 0.1–3.9) | Within 72 Hours | Within 7 Business Days | Next Release Cycle |
 
 ---
 
