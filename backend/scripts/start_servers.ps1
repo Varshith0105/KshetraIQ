@@ -39,7 +39,11 @@ if ($bConn) {
         Write-Host "[OK] Existing KshetraIQ backend is healthy on http://127.0.0.1:8000. Reusing service." -ForegroundColor Green
     } else {
         $owner = Get-CimInstance Win32_Process -Filter "ProcessId = $($bConn.OwningProcess)" -ErrorAction SilentlyContinue
-        if (-not $owner -or $owner.CommandLine -notmatch [regex]::Escape($ROOT_DIR)) {
+        $isBackend = $false
+        if ($owner -and $owner.CommandLine) {
+            $isBackend = ($owner.CommandLine -match [regex]::Escape($ROOT_DIR)) -or ($owner.CommandLine -match "app\.main:create_app") -or ($owner.CommandLine -match "uvicorn")
+        }
+        if (-not $isBackend) {
             throw "Port 8000 is owned by a non-KshetraIQ process. It was not stopped. Free the port or start KshetraIQ on a different port."
         }
         Write-Host "[WARN] Recycling the unresponsive KshetraIQ backend listener..." -ForegroundColor Yellow
@@ -63,7 +67,11 @@ if ($fConn) {
         Write-Host "[OK] Existing KshetraIQ frontend is active on http://127.0.0.1:3000. Reusing service." -ForegroundColor Green
     } else {
         $owner = Get-CimInstance Win32_Process -Filter "ProcessId = $($fConn.OwningProcess)" -ErrorAction SilentlyContinue
-        if (-not $owner -or $owner.CommandLine -notmatch [regex]::Escape($ROOT_DIR)) {
+        $isFrontend = $false
+        if ($owner -and $owner.CommandLine) {
+            $isFrontend = ($owner.CommandLine -match [regex]::Escape($ROOT_DIR)) -or ($owner.CommandLine -match "next") -or ($owner.CommandLine -match "node")
+        }
+        if (-not $isFrontend) {
             throw "Port 3000 is owned by a non-KshetraIQ process. It was not stopped. Free the port or start KshetraIQ on a different port."
         }
         Write-Host "[WARN] Recycling the unresponsive KshetraIQ frontend listener..." -ForegroundColor Yellow
