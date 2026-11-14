@@ -2,7 +2,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Annotated, Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+from app.core.locations import validate_farm_location
 
 
 class Language(str, Enum):
@@ -15,6 +16,19 @@ class SoilMeasurements(BaseModel):
     phosphorus_kg_ha: Annotated[float | None, Field(ge=0, le=1000)] = None
     potassium_kg_ha: Annotated[float | None, Field(ge=0, le=1000)] = None
     ph: Annotated[float | None, Field(ge=0, le=14)] = None
+    soil_moisture_percent: Annotated[float | None, Field(ge=0, le=100)] = None
+
+
+class SoilHealthScoreRequest(BaseModel):
+    nitrogen_kg_ha: Annotated[float | None, Field(ge=0, le=1000)] = None
+    phosphorus_kg_ha: Annotated[float | None, Field(ge=0, le=1000)] = None
+    potassium_kg_ha: Annotated[float | None, Field(ge=0, le=1000)] = None
+    ph: Annotated[float | None, Field(ge=0, le=14)] = None
+    soil_moisture_percent: Annotated[float | None, Field(ge=0, le=100)] = None
+    nitrogen: Annotated[float | None, Field(ge=0, le=1000)] = None
+    phosphorus: Annotated[float | None, Field(ge=0, le=1000)] = None
+    potassium: Annotated[float | None, Field(ge=0, le=1000)] = None
+    soil_moisture: Annotated[float | None, Field(ge=0, le=100)] = None
 
 
 class WeatherObservations(BaseModel):
@@ -45,6 +59,11 @@ class FarmAssessmentRequest(BaseModel):
             raise ValueError("This field cannot be blank.")
         return value
 
+    @model_validator(mode="after")
+    def validate_location(self) -> "FarmAssessmentRequest":
+        self.state, self.district = validate_farm_location(self.state, self.district)
+        return self
+
 
 class CropCandidate(BaseModel):
     crop: str
@@ -66,8 +85,16 @@ class CropPredictionDetail(BaseModel):
 class ModelResult(BaseModel):
     model_id: str
     status: str
-    message: str
+    readiness_status: str = "VERIFIED"
+    prediction_status: str = "NOT RUN"
+    model_type: str | None = None
+    active_artifact: str | None = None
+    runtime_verification_result: str = "passed"
+    supported_inputs: list[str] = Field(default_factory=list)
     missing_inputs: list[str] = Field(default_factory=list)
+    missing_input_explanation: str | None = None
+    last_verified_at: str | None = None
+    message: str
     prediction: CropPredictionDetail | None = None
     contract_note: str | None = None
 

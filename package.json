@@ -1,0 +1,12 @@
+{
+  "name": "kshetraiq",
+  "version": "0.4.0",
+  "private": true,
+  "description": "KshetraIQ — AI-Powered Agricultural Intelligence Platform",
+  "scripts": {
+    "build": "npm --prefix frontend run build",
+    "start": "npm --prefix frontend run start -- -p 3000 -H 127.0.0.1",
+    "dev": "npm --prefix frontend run dev -- -p 3000 -H 127.0.0.1",
+    "backend": "powershell -Command \"$env:PYTHONPATH='backend'; .\\.venv\\Scripts\\python.exe -m uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000\""
+  }
+}

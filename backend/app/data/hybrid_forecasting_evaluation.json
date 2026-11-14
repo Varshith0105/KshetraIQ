@@ -1,0 +1,212 @@
+[
+  {
+    "horizon_days": 1,
+    "persistence": {
+      "mae": 11.13,
+      "rmse": 33.15,
+      "r2": 0.9794,
+      "bias": -1.06,
+      "cov_mae": 79.12,
+      "cov_95": 96.64
+    },
+    "lightgbm": {
+      "mae": 151.4,
+      "rmse": 204.43,
+      "r2": 0.2148,
+      "bias": 5.52,
+      "dir_acc": 52.76,
+      "cov_mae": 67.79,
+      "cov_95": 90.44
+    },
+    "hybrid": {
+      "mae": 12.64,
+      "rmse": 33.13,
+      "r2": 0.9794,
+      "bias": -0.85,
+      "cov_mae": 79.47,
+      "cov_95": 96.46,
+      "decay_w": 0.967
+    },
+    "optimal_strategy": "persistence"
+  },
+  {
+    "horizon_days": 3,
+    "persistence": {
+      "mae": 19.55,
+      "rmse": 39.64,
+      "r2": 0.9703,
+      "bias": -3.24,
+      "cov_mae": 68.92,
+      "cov_95": 93.43
+    },
+    "lightgbm": {
+      "mae": 151.38,
+      "rmse": 204.58,
+      "r2": 0.2087,
+      "bias": 4.98,
+      "dir_acc": 57.87,
+      "cov_mae": 68.03,
+      "cov_95": 90.41
+    },
+    "hybrid": {
+      "mae": 24.24,
+      "rmse": 41.44,
+      "r2": 0.9675,
+      "bias": -2.46,
+      "cov_mae": 76.38,
+      "cov_95": 95.03,
+      "decay_w": 0.905
+    },
+    "optimal_strategy": "persistence"
+  },
+  {
+    "horizon_days": 5,
+    "persistence": {
+      "mae": 27.07,
+      "rmse": 48.13,
+      "r2": 0.9559,
+      "bias": -5.41,
+      "cov_mae": 66.13,
+      "cov_95": 93.05
+    },
+    "lightgbm": {
+      "mae": 150.96,
+      "rmse": 204.32,
+      "r2": 0.2062,
+      "bias": 4.04,
+      "dir_acc": 59.84,
+      "cov_mae": 68.27,
+      "cov_95": 90.37
+    },
+    "hybrid": {
+      "mae": 34.69,
+      "rmse": 52.34,
+      "r2": 0.9479,
+      "bias": -3.96,
+      "cov_mae": 74.69,
+      "cov_95": 93.05,
+      "decay_w": 0.846
+    },
+    "optimal_strategy": "persistence"
+  },
+  {
+    "horizon_days": 7,
+    "persistence": {
+      "mae": 33.7,
+      "rmse": 58.08,
+      "r2": 0.9355,
+      "bias": -7.58,
+      "cov_mae": 63.86,
+      "cov_95": 93.74
+    },
+    "lightgbm": {
+      "mae": 150.55,
+      "rmse": 204.07,
+      "r2": 0.2036,
+      "bias": 3.11,
+      "dir_acc": 61.4,
+      "cov_mae": 68.52,
+      "cov_95": 90.34
+    },
+    "hybrid": {
+      "mae": 43.93,
+      "rmse": 64.11,
+      "r2": 0.9214,
+      "bias": -5.36,
+      "cov_mae": 73.52,
+      "cov_95": 91.59,
+      "decay_w": 0.792
+    },
+    "optimal_strategy": "persistence"
+  },
+  {
+    "horizon_days": 14,
+    "persistence": {
+      "mae": 56.2,
+      "rmse": 92.4,
+      "r2": 0.8336,
+      "bias": -15.12,
+      "cov_mae": 61.41,
+      "cov_95": 92.39
+    },
+    "lightgbm": {
+      "mae": 149.27,
+      "rmse": 203.39,
+      "r2": 0.1939,
+      "bias": -0.05,
+      "dir_acc": 66.34,
+      "cov_mae": 69.38,
+      "cov_95": 90.22
+    },
+    "hybrid": {
+      "mae": 71.63,
+      "rmse": 100.38,
+      "r2": 0.8036,
+      "bias": -9.5,
+      "cov_mae": 71.92,
+      "cov_95": 87.32,
+      "decay_w": 0.627
+    },
+    "optimal_strategy": "persistence"
+  },
+  {
+    "horizon_days": 30,
+    "persistence": {
+      "mae": 105.1,
+      "rmse": 161.19,
+      "r2": 0.4732,
+      "bias": -29.95,
+      "cov_mae": 52.61,
+      "cov_95": 88.43
+    },
+    "lightgbm": {
+      "mae": 146.88,
+      "rmse": 202.56,
+      "r2": 0.1682,
+      "bias": -6.89,
+      "dir_acc": 81.92,
+      "cov_mae": 71.46,
+      "cov_95": 89.93
+    },
+    "hybrid": {
+      "mae": 107.69,
+      "rmse": 153.62,
+      "r2": 0.5216,
+      "bias": -15.37,
+      "cov_mae": 74.07,
+      "cov_95": 85.63,
+      "decay_w": 0.368
+    },
+    "optimal_strategy": "hybrid_blend"
+  },
+  {
+    "horizon_days": 60,
+    "persistence": {
+      "mae": 191.14,
+      "rmse": 254.12,
+      "r2": -0.4155,
+      "bias": -55.89,
+      "cov_mae": 42.49,
+      "cov_95": 73.91
+    },
+    "lightgbm": {
+      "mae": 143.58,
+      "rmse": 202.51,
+      "r2": 0.1011,
+      "bias": -19.31,
+      "dir_acc": 88.22,
+      "cov_mae": 75.69,
+      "cov_95": 89.33
+    },
+    "hybrid": {
+      "mae": 134.48,
+      "rmse": 192.34,
+      "r2": 0.1891,
+      "bias": -24.26,
+      "cov_mae": 74.7,
+      "cov_95": 88.54,
+      "decay_w": 0.135
+    },
+    "optimal_strategy": "seasonal_lightgbm"
+  }
+]

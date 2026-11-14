@@ -3,6 +3,7 @@ from typing import Any
 
 from app.core.config import Settings
 from app.schemas.assessment import AdvisorRecommendation, CropPredictionDetail, FarmAssessmentRequest
+from app.services.soil_health_service import soil_health_service
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +112,9 @@ class AdvisorService:
             "npk_observations": npk_remarks or ["NPK values are within normal agronomic ranges."],
             "npk_observations_te": npk_remarks_te or ["NPK విలువలు సాధారణ శ్రేణిలో ఉన్నాయి."],
         }
+        # One backend calculation is persisted inside the assessment response
+        # and reused by the dashboard, chatbot context, and PDF.
+        soil_summary.update(soil_health_service.assess(assessment.soil))
 
         # 2. Crop Guidance
         crop_guide = CROP_AGRONOMY_GUIDES.get(

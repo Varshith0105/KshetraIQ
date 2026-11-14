@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./styles.css";
+import { AuthProvider } from "./context/AuthContext";
+import { ScreenContextProvider } from "./context/ScreenContext";
 
 export const metadata: Metadata = {
   title: "KshetraIQ | Know Your Land. Grow With Confidence.",
@@ -21,7 +23,11 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        <AuthProvider>
+          <ScreenContextProvider>{children}</ScreenContextProvider>
+        </AuthProvider>
+      </body>
     </html>
   );
 }

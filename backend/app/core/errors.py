@@ -1,6 +1,7 @@
 from typing import Any
 
 from fastapi import Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
@@ -10,4 +11,6 @@ def error_response(status_code: int, code: str, message: str, details: Any = Non
 
 
 async def validation_exception_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
-    return error_response(422, "validation_error", "Please correct the highlighted inputs.", exc.errors())
+    # Pydantic may retain a raw ValueError in an error context. Encode it before
+    # returning JSON so bad user input stays a 422 rather than becoming a 500.
+    return error_response(422, "validation_error", "Please correct the highlighted inputs.", jsonable_encoder(exc.errors()))

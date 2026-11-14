@@ -222,6 +222,38 @@
       "blocker_reason": null
     },
     {
+      "model_id": "market-price-v2",
+      "display_name": "Pan-India APMC Mandi Price LightGBM Regressor",
+      "intended_task": "Multivariate pan-India APMC wholesale mandi price forecasting across 399 crops and 5,899 mandis",
+      "source_collection": "market-model-review",
+      "artifact_path": "Agriverse_Models/kshetraiq_improved_model.pkl",
+      "companion_artifacts": [
+        "Agriverse_Models/kshetraiq_model.pkl"
+      ],
+      "training_notebook": "market-model-review/market-predection-analysis.ipynb",
+      "dataset_provenance": "26.4 million combined APMC records (2021-2025) downsampled to 500k sample, 1-99% crop-wise outlier filtered",
+      "artifact_format": "pickle (joblib)",
+      "file_size_bytes": 3291058,
+      "algorithm": "LightGBM Regressor (LGBMRegressor, 500 trees, lr=0.03, num_leaves=31, R² = 0.4790, MAE = 153.93 Rs/Quintal)",
+      "input_contract": {
+        "features": ["state_name", "district_name", "market_name", "crop", "variety", "year", "month", "day"],
+        "order": ["state_name", "district_name", "market_name", "crop", "variety", "year", "month", "day"],
+        "preprocessing": "Pandas categorical dtypes for categorical features; date decomposition for year, month, day"
+      },
+      "output_contract": {
+        "type": "continuous_price",
+        "unit": "Rs./Quintal",
+        "interpretation": "Predicted modal mandi price with empirical confidence bands and directional trend indicator"
+      },
+      "runtime_requirements": {
+        "python": ">=3.11",
+        "libraries": ["lightgbm>=4.0", "pandas>=2.2", "scikit-learn>=1.6", "joblib>=1.4"]
+      },
+      "verification_status": "VERIFIED",
+      "api_endpoint": "POST /api/v1/predictions/market-price",
+      "blocker_reason": null
+    },
+    {
       "model_id": "market-price-v1",
       "display_name": "APMC Mandi Price Forecasting Engine",
       "intended_task": "Time-series commodity modal price forecasting and official mandi price adapter",
@@ -321,31 +353,33 @@
       "display_name": "PPO Reinforcement Learning Irrigation Policy",
       "intended_task": "Autonomous closed-loop soil moisture irrigation decision policy",
       "source_collection": "Agriverse_Models",
-      "artifact_path": "Agriverse_Models/final_rl_irrigation_ppo_model.zip",
+      "artifact_path": "Agriverse_Models/final_rl_irrigation_ppo_model.pkl",
       "companion_artifacts": [],
       "training_notebook": "Agriverse_Models/RL_Irrigation_Optimization.ipynb",
-      "dataset_provenance": "150-row synthetic soil moisture / weather time series",
-      "artifact_format": "zip (Stable-Baselines3 PPO policy)",
-      "file_size_bytes": 0,
-      "algorithm": "Stable-Baselines3 PPO ActorCriticPolicy with Normalized Box(6,) observation space",
+      "dataset_provenance": "150-row synthetic soil moisture / weather time series (Project_datasheet_2019-2020.xlsx)",
+      "artifact_format": "pickle (PyTorch state_dict from SB3 get_parameters())",
+      "file_size_bytes": 128011,
+      "algorithm": "Stable-Baselines3 PPO ActorCriticPolicy (MlpPolicy) with Normalized Box(6,) observation space",
       "input_contract": {
         "features": ["CropType", "CropDays", "Soil Moisture", "Soil Temperature", "Temperature", "Humidity"],
-        "observation_space": "Box(low=0.0, high=1.0, shape=(6,))"
+        "observation_space": "Box(low=0.0, high=1.0, shape=(6,))",
+        "normalization": "CropType/2.0, CropDays/100.0, SoilMoisture/800.0, SoilTemp/40.0, Temp/50.0, Humidity/100.0"
       },
       "output_contract": {
         "action_space": "Discrete(2)",
         "actions": {
           "0": "No Irrigation",
           "1": "Irrigation"
-        }
+        },
+        "volumetric_scaling": "Coupled to verified ICAR crop water budgeting (ETc, growth stage, soil retention, rainfall credit)"
       },
       "runtime_requirements": {
         "python": ">=3.11",
-        "libraries": ["stable-baselines3>=2.0", "gymnasium>=0.29"]
+        "libraries": ["numpy>=2.0", "optional: torch>=2.0, stable-baselines3>=2.0"]
       },
-      "verification_status": "UNAVAILABLE",
-      "api_endpoint": "None",
-      "blocker_reason": "Artifact final_rl_irrigation_ppo_model.zip was saved to Colab temporary filesystem (/content) but was never committed to repository. ICAR deterministic irrigation advisory active instead."
+      "verification_status": "VERIFIED",
+      "api_endpoint": "POST /api/v1/predictions/irrigation",
+      "blocker_reason": null
     },
     {
       "model_id": "vegetation-ndvi-v1",

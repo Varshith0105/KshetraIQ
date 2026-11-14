@@ -1,5 +1,6 @@
 """Pydantic schemas for individual ML inference and diagnostic endpoints."""
 
+from typing import Any
 from pydantic import BaseModel, Field
 
 
@@ -98,42 +99,102 @@ class WeatherRiskResponse(BaseModel):
 class ModelHealthResponse(BaseModel):
     model_id: str
     display_name: str
-    status: str  # READY | DEGRADED | BLOCKED | UNAVAILABLE
+    status: str = "READY"  # backward-compatible: READY | UNAVAILABLE | DEGRADED
+    readiness_status: str = "VERIFIED"  # VERIFIED | NOT VERIFIED | ERROR
+    prediction_status: str = "NOT RUN"  # PREDICTED | AWAITING INPUT | NOT RUN | FAILED
+    model_type: str = "Machine Learning"
+    active_artifact: str = ""
+    runtime_verification_result: str = "passed"
     artifact_name: str
     artifact_found: bool
     runtime_ready: bool
     smoke_test_passed: bool = True
-    required_inputs: list[str]
-    notes: str
+    required_inputs: list[str] = Field(default_factory=list)
+    missing_input_explanation: str | None = None
+    last_verified_at: str = ""
+    notes: str = ""
     limitations: str | None = None
     endpoint: str | None = None
 
 
 # ── Market Price Forecasting ──
 class MarketPriceRequest(BaseModel):
-    commodity: str = Field(default="Wheat", description="Agricultural commodity name")
-    mandi: str = Field(default="Varanasi(Grain)", description="APMC Market Mandi")
+    commodity: str = Field(min_length=1, description="Farmer-selected agricultural commodity name")
+    mandi: str = Field(min_length=1, description="Farmer-selected APMC mandi")
+    state: str | None = Field(default=None, description="State of the APMC Mandi")
+    district: str | None = Field(default=None, description="District of the APMC Mandi")
+    variety: str | None = Field(default=None, description="Produce variety")
     target_date: str | None = Field(default=None, description="ISO target forecast date (YYYY-MM-DD)")
     days_ahead: int = Field(default=7, ge=1, le=90, description="Forecast horizon in days")
 
 
 class MarketPriceResponse(BaseModel):
-    model_id: str = "market-price-v1"
+    model_id: str = "market-price-v2"
+    model_version: str = "v2"
     algorithm: str
     commodity: str
+    variety: str | None = None
     mandi: str
+    district: str | None = None
+    state: str | None = None
+    mandi_district: str | None = None
+    mandi_state: str | None = None
     forecast_date: str
     forecast_modal_price: float
-    trend_component: float
-    residual_adjustment: float
-    unit: str
+    primary_forecast_method: str = "persistence"  # "persistence" | "hybrid_blend" | "seasonal_lightgbm"
+    forecast_method_label: str = "Persistence Baseline (Latest Verified Observation Anchor)"
+    forecast_method_rationale: str | None = None
+    seasonal_model_estimate: float | None = None
+    seasonal_difference: float | None = None
+    seasonal_difference_pct: float | None = None
+    seasonal_trend_direction: str | None = None
+    trend_component: float | None = None
+    residual_adjustment: float | None = None
+    expected_change: float | None = None
+    expected_change_pct: float | None = None
+    trend_direction: str | None = None
+    unit: str = "Rs./Quintal"
+    price_unit: str = "Rs./Quintal"
     observed_market_price: float
     observation_timestamp: str
+    observation_date: str | None = None
+    retrieved_at: str | None = None
+    is_stale: bool = False
     data_source: str
     live_feed_status: str | None = None
     adapter_note: str | None = None
-    confidence_band: dict[str, float]
+    confidence_band: dict[str, Any]
+    forecast_trajectory: list[dict[str, Any]] | None = None
     limitations: str
+
+
+class MarketCommodityItem(BaseModel):
+    name: str
+    name_te: str | None = None
+    category: str | None = None
+
+
+class MarketMandiItem(BaseModel):
+    name: str
+    district: str
+    state: str
+
+
+class MarketVerifiedPair(BaseModel):
+    commodity: str
+    mandi: str
+    district: str
+    state: str
+    source: str
+
+
+class MarketCommoditiesResponse(BaseModel):
+    total_commodities: int
+    popular_commodities: list[MarketCommodityItem]
+    all_commodities: list[str]
+    total_mandis: int
+    popular_mandis: list[MarketMandiItem]
+    verified_pairs: list[MarketVerifiedPair] = []
 
 
 # ── Plant Disease Screening ──
@@ -169,11 +230,17 @@ class IrrigationRequest(BaseModel):
     temperature: float = Field(default=28.0, ge=-10.0, le=55.0, description="Ambient temperature in °C")
     rainfall_forecast_mm: float = Field(default=0.0, ge=0.0, le=500.0, description="Forecasted 3-day precipitation")
     area_acres: float = Field(default=2.5, gt=0.0, le=10000.0, description="Farm acreage")
+    soil_temperature: float | None = Field(default=None, ge=-5.0, le=60.0, description="Measured soil temperature in °C")
+    humidity: float | None = Field(default=None, ge=0.0, le=100.0, description="Relative atmospheric humidity %")
+    is_sensor_data: bool = Field(default=False, description="Whether soil moisture/temperature are measured by calibrated telemetry sensors")
+    force_deterministic: bool = Field(default=False, description="Enforce ICAR deterministic calculation without RL")
 
 
 class IrrigationResponse(BaseModel):
     model_id: str = "irrigation-deterministic-icar-v1"
     advisory_type: str
+    method_used: str = "icar_angrau_deterministic"
+    model_status: str = "READY"
     crop: str
     crop_days: int
     growth_stage: str
@@ -185,9 +252,20 @@ class IrrigationResponse(BaseModel):
     recommended_water_depth_mm: float
     liters_per_acre: int
     total_farm_liters: int
+    gross_farm_liters: int | None = None
+    application_efficiency_pct: float | None = None
     area_acres: float
     schedule_interval_days: int
     recommended_method: str
     recommended_method_te: str
+    policy_action: int | None = None
+    policy_action_name: str | None = None
+    policy_confidence: float | None = None
+    policy_preference_score: float | None = None
+    is_sensor_data: bool = False
+    water_volume_formula: str = "depth_mm * 4046.8564224 * area_acres"
+    normalized_observation: list[float] | None = None
+    limitations: str | None = None
     rl_status_note: str
+
 

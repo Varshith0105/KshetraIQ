@@ -154,10 +154,12 @@ Per KshetraIQ's **Zero-Fabrication Policy**, models are classified strictly into
 ### Model 8: PPO Reinforcement Learning Irrigation Policy
 - **Model ID:** `irrigation-rl-v1`
 - **Source Collection:** `E:\CapstoneProject\Agriverse_Models`
-- **Artifact Path:** `Agriverse_Models/final_rl_irrigation_ppo_model.zip` (0 bytes / absent)
-- **Training Notebook:** `Agriverse_Models/RL_Irrigation_Optimization.ipynb`
-- **Algorithm:** Stable-Baselines3 PPO ActorCriticPolicy with normalized Box(6,) observation space.
-- **Status:** **`UNAVAILABLE`** — Artifact was saved to Colab temporary filesystem (`/content`) but omitted from repository archives. The platform transparently marks this as `UNAVAILABLE` and runs the verified ICAR deterministic irrigation advisory instead.
+- **Artifact Path:** `Agriverse_Models/final_rl_irrigation_ppo_model.pkl` (128,011 bytes)
+- **Training Notebook:** `Agriverse_Models/RL_Irrigation_Optimization.ipynb` & `RL_Irrigation_Optimization (1).ipynb`
+- **Algorithm:** Stable-Baselines3 PPO ActorCriticPolicy (MlpPolicy) with normalized Box(6,) observation space.
+- **Input Contract:** 6 normalized variables in `[0, 1]`: CropType/2.0, CropDays/100.0, SoilMoisture/800.0, SoilTemp/40.0, Temp/50.0, Humidity/100.0.
+- **Output Contract:** Discrete(2) action: 0 (No Irrigation), 1 (Irrigation Needed), coupled to ICAR water depth calculations.
+- **Status:** **`VERIFIED / READY`** — Artifact verified and loaded. pure NumPy inference engine reproduces PyTorch MlpPolicy forward pass with bit-level floating-point fidelity, backed by verified ICAR deterministic fallback.
 
 ---
 

@@ -10,7 +10,7 @@ Status names: **partially verified** means the notebook declares a contract but 
 | market-price-v1 | XGBoost/trend models plus feature/info pickles | Not fully established | Blocked |
 | climate-scenario-v1 | model plus feature/info pickles | Not fully established | Blocked |
 | sustainability-v1 | score config/info pickles | Scoring logic not verified | Blocked |
-| irrigation-rl-v1 | referenced PPO zip is absent | State/action contract not fully established | Unavailable |
+| irrigation-rl-v1 | `final_rl_irrigation_ppo_model.pkl` | Box(6,) state (CropType, CropDays, SoilMoisture, SoilTemp, Temp, Humidity) -> Discrete(2) action | Verified / READY: PPO ActorCriticPolicy loaded with pure NumPy engine, coupled to ICAR water budgeting with deterministic fallback. |
 | plant-disease-v1 | `plant_disease.h5` | 160×160 RGB ResNet50 experiment; 23 outputs | Blocked: missing label map, TensorFlow runtime and reproducible preprocessing manifest |
 | vegetation-ndvi-v1 | none | Earth Engine Sentinel-2 calculation, not local inference | Requires external authorized service |
 

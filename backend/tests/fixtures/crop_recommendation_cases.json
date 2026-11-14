@@ -1,0 +1,356 @@
+{
+  "test_cases": [
+    {
+      "id": "crop_case_01",
+      "crop_target": "rice",
+      "description": "High water demand, warm humid climate, heavy clay/alluvial soil with moderate NPK",
+      "inputs": {
+        "N": 80.0,
+        "P": 40.0,
+        "K": 40.0,
+        "temperature": 24.0,
+        "humidity": 80.0,
+        "ph": 6.5,
+        "rainfall": 220.0
+      },
+      "expected_crop": "rice",
+      "model_confidence": 0.865
+    },
+    {
+      "id": "crop_case_02",
+      "crop_target": "maize",
+      "description": "Warm season cereal crop, well-drained loam, moderate rainfall and balanced nitrogen",
+      "inputs": {
+        "N": 80.0,
+        "P": 45.0,
+        "K": 20.0,
+        "temperature": 24.0,
+        "humidity": 65.0,
+        "ph": 6.2,
+        "rainfall": 85.0
+      },
+      "expected_crop": "maize",
+      "model_confidence": 1.0
+    },
+    {
+      "id": "crop_case_03",
+      "crop_target": "chickpea",
+      "description": "Rabi pulse requiring low humidity, cool dry weather, and high potassium/phosphorus",
+      "inputs": {
+        "N": 40.0,
+        "P": 65.0,
+        "K": 80.0,
+        "temperature": 19.0,
+        "humidity": 16.0,
+        "ph": 7.3,
+        "rainfall": 80.0
+      },
+      "expected_crop": "chickpea",
+      "model_confidence": 1.0
+    },
+    {
+      "id": "crop_case_04",
+      "crop_target": "kidneybeans",
+      "description": "Leguminous cool-climate pulse with low nitrogen requirement and moderate rainfall",
+      "inputs": {
+        "N": 20.0,
+        "P": 65.0,
+        "K": 20.0,
+        "temperature": 20.0,
+        "humidity": 21.0,
+        "ph": 5.7,
+        "rainfall": 105.0
+      },
+      "expected_crop": "kidneybeans",
+      "model_confidence": 1.0
+    },
+    {
+      "id": "crop_case_05",
+      "crop_target": "pigeonpeas",
+      "description": "Deep-rooted semi-arid kharif red gram, drought tolerant in well-drained soil",
+      "inputs": {
+        "N": 20.0,
+        "P": 65.0,
+        "K": 20.0,
+        "temperature": 28.0,
+        "humidity": 48.0,
+        "ph": 5.7,
+        "rainfall": 150.0
+      },
+      "expected_crop": "pigeonpeas",
+      "model_confidence": 0.98
+    },
+    {
+      "id": "crop_case_06",
+      "crop_target": "mothbeans",
+      "description": "Extremely drought-resistant arid legume requiring hot temperatures and low rainfall",
+      "inputs": {
+        "N": 20.0,
+        "P": 45.0,
+        "K": 20.0,
+        "temperature": 28.0,
+        "humidity": 53.0,
+        "ph": 6.8,
+        "rainfall": 50.0
+      },
+      "expected_crop": "mothbeans",
+      "model_confidence": 0.89
+    },
+    {
+      "id": "crop_case_07",
+      "crop_target": "mungbean",
+      "description": "Short-duration warm pulse with high atmospheric humidity tolerance and low rainfall",
+      "inputs": {
+        "N": 20.0,
+        "P": 45.0,
+        "K": 20.0,
+        "temperature": 28.0,
+        "humidity": 85.0,
+        "ph": 6.7,
+        "rainfall": 45.0
+      },
+      "expected_crop": "mungbean",
+      "model_confidence": 1.0
+    },
+    {
+      "id": "crop_case_08",
+      "crop_target": "blackgram",
+      "description": "Warm humid pulse suited for loamy soil with moderate nitrogen and phosphorus",
+      "inputs": {
+        "N": 40.0,
+        "P": 65.0,
+        "K": 20.0,
+        "temperature": 30.0,
+        "humidity": 65.0,
+        "ph": 7.1,
+        "rainfall": 65.0
+      },
+      "expected_crop": "blackgram",
+      "model_confidence": 0.985
+    },
+    {
+      "id": "crop_case_09",
+      "crop_target": "lentil",
+      "description": "Cool-season legume with low moisture requirement and moderate phosphorus",
+      "inputs": {
+        "N": 20.0,
+        "P": 65.0,
+        "K": 20.0,
+        "temperature": 25.0,
+        "humidity": 65.0,
+        "ph": 6.9,
+        "rainfall": 45.0
+      },
+      "expected_crop": "lentil",
+      "model_confidence": 0.985
+    },
+    {
+      "id": "crop_case_10",
+      "crop_target": "pomegranate",
+      "description": "Subtropical horticultural crop favoring high humidity, neutral pH and moderate rainfall",
+      "inputs": {
+        "N": 20.0,
+        "P": 20.0,
+        "K": 40.0,
+        "temperature": 22.0,
+        "humidity": 90.0,
+        "ph": 6.4,
+        "rainfall": 105.0
+      },
+      "expected_crop": "pomegranate",
+      "model_confidence": 0.99
+    },
+    {
+      "id": "crop_case_11",
+      "crop_target": "banana",
+      "description": "Heavy feeder tropical fruit crop requiring high NPK, high humidity, warm temperature",
+      "inputs": {
+        "N": 100.0,
+        "P": 75.0,
+        "K": 50.0,
+        "temperature": 27.0,
+        "humidity": 80.0,
+        "ph": 6.0,
+        "rainfall": 100.0
+      },
+      "expected_crop": "banana",
+      "model_confidence": 1.0
+    },
+    {
+      "id": "crop_case_12",
+      "crop_target": "mango",
+      "description": "Tropical tree fruit flourishing in warm temperatures, moderate rainfall, deep alluvial soil",
+      "inputs": {
+        "N": 20.0,
+        "P": 25.0,
+        "K": 30.0,
+        "temperature": 31.0,
+        "humidity": 50.0,
+        "ph": 5.7,
+        "rainfall": 95.0
+      },
+      "expected_crop": "mango",
+      "model_confidence": 1.0
+    },
+    {
+      "id": "crop_case_13",
+      "crop_target": "grapes",
+      "description": "High potassium and phosphorus demanding viticulture in semi-arid conditions",
+      "inputs": {
+        "N": 20.0,
+        "P": 130.0,
+        "K": 200.0,
+        "temperature": 24.0,
+        "humidity": 81.0,
+        "ph": 6.0,
+        "rainfall": 70.0
+      },
+      "expected_crop": "grapes",
+      "model_confidence": 0.99
+    },
+    {
+      "id": "crop_case_14",
+      "crop_target": "watermelon",
+      "description": "Cucurbit warm fruit requiring high nitrogen, low water logging, sandy loam",
+      "inputs": {
+        "N": 100.0,
+        "P": 15.0,
+        "K": 50.0,
+        "temperature": 26.0,
+        "humidity": 85.0,
+        "ph": 6.5,
+        "rainfall": 50.0
+      },
+      "expected_crop": "watermelon",
+      "model_confidence": 0.995
+    },
+    {
+      "id": "crop_case_15",
+      "crop_target": "muskmelon",
+      "description": "Summer melon crop suited for warm dry weather with high nitrogen and low rainfall",
+      "inputs": {
+        "N": 100.0,
+        "P": 15.0,
+        "K": 50.0,
+        "temperature": 28.0,
+        "humidity": 92.0,
+        "ph": 6.4,
+        "rainfall": 25.0
+      },
+      "expected_crop": "muskmelon",
+      "model_confidence": 1.0
+    },
+    {
+      "id": "crop_case_16",
+      "crop_target": "apple",
+      "description": "Temperate orchard fruit requiring high potassium/phosphorus, cool mild conditions",
+      "inputs": {
+        "N": 25.0,
+        "P": 135.0,
+        "K": 200.0,
+        "temperature": 22.0,
+        "humidity": 92.0,
+        "ph": 5.9,
+        "rainfall": 110.0
+      },
+      "expected_crop": "apple",
+      "model_confidence": 1.0
+    },
+    {
+      "id": "crop_case_17",
+      "crop_target": "orange",
+      "description": "Citrus fruit requiring well-drained soil, low NPK input, neutral pH, high humidity",
+      "inputs": {
+        "N": 20.0,
+        "P": 15.0,
+        "K": 10.0,
+        "temperature": 23.0,
+        "humidity": 92.0,
+        "ph": 7.0,
+        "rainfall": 110.0
+      },
+      "expected_crop": "orange",
+      "model_confidence": 0.94
+    },
+    {
+      "id": "crop_case_18",
+      "crop_target": "papaya",
+      "description": "Fast-growing tropical fruit requiring balanced NPK, warm conditions, high humidity",
+      "inputs": {
+        "N": 50.0,
+        "P": 60.0,
+        "K": 50.0,
+        "temperature": 33.0,
+        "humidity": 92.0,
+        "ph": 6.7,
+        "rainfall": 150.0
+      },
+      "expected_crop": "papaya",
+      "model_confidence": 1.0
+    },
+    {
+      "id": "crop_case_19",
+      "crop_target": "coconut",
+      "description": "Coastal humid plantation crop requiring high humidity, abundant rainfall, sandy soil",
+      "inputs": {
+        "N": 20.0,
+        "P": 15.0,
+        "K": 30.0,
+        "temperature": 27.0,
+        "humidity": 95.0,
+        "ph": 6.0,
+        "rainfall": 175.0
+      },
+      "expected_crop": "coconut",
+      "model_confidence": 0.995
+    },
+    {
+      "id": "crop_case_20",
+      "crop_target": "cotton",
+      "description": "Deep black soil commercial cash crop requiring high nitrogen and moderate rainfall",
+      "inputs": {
+        "N": 120.0,
+        "P": 45.0,
+        "K": 20.0,
+        "temperature": 24.0,
+        "humidity": 80.0,
+        "ph": 6.9,
+        "rainfall": 80.0
+      },
+      "expected_crop": "cotton",
+      "model_confidence": 1.0
+    },
+    {
+      "id": "crop_case_21",
+      "crop_target": "jute",
+      "description": "Golden fibre crop requiring hot humid monsoon climate and alluvial floodplains",
+      "inputs": {
+        "N": 80.0,
+        "P": 45.0,
+        "K": 40.0,
+        "temperature": 25.0,
+        "humidity": 80.0,
+        "ph": 6.7,
+        "rainfall": 175.0
+      },
+      "expected_crop": "jute",
+      "model_confidence": 0.935
+    },
+    {
+      "id": "crop_case_22",
+      "crop_target": "coffee",
+      "description": "Hill plantation shade crop requiring rich nitrogen, mild temperature, high rainfall",
+      "inputs": {
+        "N": 100.0,
+        "P": 30.0,
+        "K": 30.0,
+        "temperature": 25.0,
+        "humidity": 58.0,
+        "ph": 6.8,
+        "rainfall": 160.0
+      },
+      "expected_crop": "coffee",
+      "model_confidence": 1.0
+    }
+  ]
+}

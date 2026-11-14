@@ -11,6 +11,8 @@ __pycache__/
 .mypy_cache/
 node_modules/
 .next/
+.next-kshetraiq/
+frontend/.next-kshetraiq/
 out/
 dist/
 coverage/

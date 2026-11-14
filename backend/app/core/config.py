@@ -23,6 +23,24 @@ class Settings(BaseSettings):
     storage_backend: str = Field(default="sqlite", validation_alias=AliasChoices("KSHETRAIQ_STORAGE_BACKEND", "STORAGE_BACKEND"))
     sqlite_db_path: Path = Field(default=Path("backend/.tmp/kshetraiq.db"), validation_alias=AliasChoices("KSHETRAIQ_SQLITE_PATH", "SQLITE_PATH"))
 
+    google_client_id: str | None = Field(default=None, validation_alias=AliasChoices("GOOGLE_CLIENT_ID", "KSHETRAIQ_GOOGLE_CLIENT_ID"))
+    google_client_secret: str | None = Field(default=None, validation_alias=AliasChoices("GOOGLE_CLIENT_SECRET", "KSHETRAIQ_GOOGLE_CLIENT_SECRET"))
+    google_redirect_uri: str = Field(default="http://localhost:3000/auth/callback", validation_alias=AliasChoices("GOOGLE_REDIRECT_URI", "KSHETRAIQ_GOOGLE_REDIRECT_URI"))
+
+    sms_provider: str = Field(default="console", validation_alias=AliasChoices("SMS_PROVIDER", "KSHETRAIQ_SMS_PROVIDER"))
+    sms_api_key: str | None = Field(default=None, validation_alias=AliasChoices("SMS_API_KEY", "KSHETRAIQ_SMS_API_KEY"))
+    sms_sender_id: str | None = Field(default="KSHTRA", validation_alias=AliasChoices("SMS_SENDER_ID", "KSHETRAIQ_SMS_SENDER_ID"))
+
+    session_expiry_hours: int = Field(default=24, validation_alias=AliasChoices("SESSION_EXPIRY_HOURS", "KSHETRAIQ_SESSION_EXPIRY_HOURS"))
+    persistent_session_days: int = Field(default=30, validation_alias=AliasChoices("PERSISTENT_SESSION_DAYS", "KSHETRAIQ_PERSISTENT_SESSION_DAYS"))
+    password_reset_expiry_minutes: int = Field(default=30, validation_alias=AliasChoices("PASSWORD_RESET_EXPIRY_MINUTES", "KSHETRAIQ_PASSWORD_RESET_EXPIRY_MINUTES"))
+    email_provider: str = Field(default="console", validation_alias=AliasChoices("EMAIL_PROVIDER", "KSHETRAIQ_EMAIL_PROVIDER"))
+    email_from: str | None = Field(default=None, validation_alias=AliasChoices("EMAIL_FROM", "KSHETRAIQ_EMAIL_FROM"))
+    smtp_host: str | None = Field(default=None, validation_alias=AliasChoices("SMTP_HOST", "KSHETRAIQ_SMTP_HOST"))
+    smtp_port: int = Field(default=587, validation_alias=AliasChoices("SMTP_PORT", "KSHETRAIQ_SMTP_PORT"))
+    smtp_username: str | None = Field(default=None, validation_alias=AliasChoices("SMTP_USERNAME", "KSHETRAIQ_SMTP_USERNAME"))
+    smtp_password: str | None = Field(default=None, validation_alias=AliasChoices("SMTP_PASSWORD", "KSHETRAIQ_SMTP_PASSWORD"))
+
     llm_provider: str | None = Field(default=None, validation_alias=AliasChoices("LLM_PROVIDER", "KSHETRAIQ_LLM_PROVIDER"))
     llm_api_key: str | None = Field(default=None, validation_alias=AliasChoices("LLM_API_KEY", "KSHETRAIQ_LLM_API_KEY"))
     gemini_api_key: str | None = Field(default=None, validation_alias=AliasChoices("GEMINI_API_KEY", "KSHETRAIQ_GEMINI_API_KEY"))
@@ -30,7 +48,15 @@ class Settings(BaseSettings):
     openai_api_key: str | None = Field(default=None, validation_alias=AliasChoices("OPENAI_API_KEY", "KSHETRAIQ_OPENAI_API_KEY"))
     data_gov_in_api_key: str | None = Field(default=None, validation_alias=AliasChoices("DATA_GOV_IN_API_KEY", "KSHETRAIQ_DATA_GOV_IN_API_KEY"))
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # Permit explicit Settings(...) values in tests and app factories while
+    # still accepting the deployment aliases used in environment files.
+    # Resolve from the repository root so `uvicorn app.main:app` started in
+    # backend/ and scripts started at the repository root read the same file.
+    model_config = SettingsConfigDict(
+        env_file=Path(__file__).resolve().parents[3] / ".env",
+        extra="ignore",
+        populate_by_name=True,
+    )
 
     @property
     def resolved_model_directory(self) -> Path:
@@ -52,6 +78,18 @@ class Settings(BaseSettings):
     @property
     def has_supabase(self) -> bool:
         return bool(self.supabase_url and (self.supabase_service_role_key or self.supabase_anon_key))
+
+    @property
+    def has_google_oauth(self) -> bool:
+        return bool(self.google_client_id and self.google_client_secret)
+
+    @property
+    def has_sms_provider(self) -> bool:
+        return bool(self.sms_api_key or self.sms_provider == "console")
+
+    @property
+    def has_email_delivery(self) -> bool:
+        return bool(self.email_provider.lower() == "smtp" and self.email_from and self.smtp_host)
 
     @property
     def effective_llm_api_key(self) -> str | None:
@@ -95,9 +133,6 @@ class Settings(BaseSettings):
             "http://127.0.0.1:8000",
             "http://172.20.34.119:8000",
         ]
-        if self.environment != "development":
-            # Production: only the explicitly configured allowlist (no hardcoded dev/LAN origins)
-            defaults = []
         seen = set()
         merged: list[str] = []
         for origin in configured + defaults:

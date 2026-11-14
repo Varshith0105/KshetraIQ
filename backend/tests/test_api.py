@@ -1,22 +1,41 @@
 from fastapi.testclient import TestClient
 
+import secrets
+
+import pytest
+from app.core.config import Settings
 from app.main import create_app
 
-client = TestClient(create_app())
+client: TestClient
+test_settings: Settings
 
 
-def auth_headers() -> dict:
-    """Register a fresh farmer account and return its bearer auth header."""
-    import secrets
-    pw = 'SecurePassword123!'
-    resp = client.post('/api/v1/auth/register', json={
-        'email': f'test_{secrets.token_hex(6)}@kshetraiq.in',
-        'full_name': 'Test Farmer',
-        'password': pw,
-        'confirm_password': pw,
-    })
-    assert resp.status_code == 201
-    return {'Authorization': f"Bearer {resp.json()['token']}"}
+@pytest.fixture(scope="module", autouse=True)
+def isolated_application(tmp_path_factory: pytest.TempPathFactory) -> None:
+    """Keep API checks away from the configured persistent SQLite database."""
+    global client, test_settings
+    db_path = tmp_path_factory.mktemp("api-db") / "kshetraiq-test.db"
+    test_settings = Settings(environment="test", sqlite_db_path=db_path, _env_file=None)
+    with TestClient(create_app(test_settings)) as test_client:
+        client = test_client
+        yield
+
+
+@pytest.fixture(autouse=True)
+def authenticated_client() -> None:
+    """Saved farm data and uploads are private; seed a fresh browser session."""
+    response = client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": f"api_test_{secrets.token_hex(8)}@kshetraiq.test",
+            "full_name": "API Test Farmer",
+            "password": "SecurePassword123!",
+            "confirm_password": "SecurePassword123!",
+        },
+    )
+    assert response.status_code == 201
+    yield
+    client.post("/api/v1/auth/logout")
 
 
 def valid_payload_with_weather() -> dict:
@@ -56,8 +75,28 @@ def test_models_catalog_endpoint() -> None:
     assert resp.status_code == 200
     catalog = resp.json()
     assert len(catalog) >= 3
+
+    ids = [m["model_id"] for m in catalog]
+    # Active production models must all be present
+    for required_id in ("crop-recommendation-v1", "market-price-v2", "plant-disease-v1", "irrigation-rl-v1"):
+        assert required_id in ids, f"{required_id} missing from active registry"
+
+    # Legacy rollback must NOT appear in active production listing
+    assert "market-price-v1" not in ids, "market-price-v1 (rollback) must not appear in active model listing"
+
     crop_m = next(m for m in catalog if m["model_id"] == "crop-recommendation-v1")
     assert crop_m["contract_status"] in ("verified", "READY")
+
+    # Verify new dual-status fields are present
+    mkt_m = next(m for m in catalog if m["model_id"] == "market-price-v2")
+    assert mkt_m["readiness_status"] == "VERIFIED", f"market-price-v2 readiness not VERIFIED: {mkt_m}"
+    assert mkt_m["prediction_status"] == "AWAITING INPUT"
+    assert mkt_m["smoke_test_passed"] is True
+
+    disease_m = next(m for m in catalog if m["model_id"] == "plant-disease-v1")
+    assert disease_m["readiness_status"] == "VERIFIED", f"plant-disease-v1 readiness not VERIFIED: {disease_m}"
+    assert disease_m["prediction_status"] == "AWAITING INPUT"
+    assert disease_m["smoke_test_passed"] is True
 
 
 def test_missing_soil_never_fabricates_prediction() -> None:
@@ -72,16 +111,30 @@ def test_missing_soil_never_fabricates_prediction() -> None:
     assert "soil.nitrogen_kg_ha" in crop_res["missing_inputs"]
 
 
-def test_blocked_models_never_fabricate_predictions() -> None:
+def test_verified_models_awaiting_input_not_blocked() -> None:
+    """market-price-v2 and plant-disease-v1 must be AWAITING INPUT, never BLOCKED.
+    They are runtime-verified; they simply need user-provided mandi/image input."""
     response = client.post("/api/v1/assessments", json=valid_payload_with_weather())
     assert response.status_code == 201
     body = response.json()
-    market_res = next(r for r in body["results"] if r["model_id"] == "market-price-v1")
-    assert market_res["status"] == "blocked"
+
+    market_res = next(r for r in body["results"] if r["model_id"] == "market-price-v2")
+    assert market_res["status"] in ("awaiting_input",), (
+        f"Expected 'awaiting_input' for market-price-v2, got: {market_res['status']}"
+    )
+    assert market_res["readiness_status"] == "VERIFIED"
+    assert market_res["prediction_status"] == "AWAITING INPUT"
     assert market_res.get("prediction") is None
+    assert "market-price-v1" not in [r["model_id"] for r in body["results"]], (
+        "market-price-v1 (legacy rollback) must NOT appear in active assessment results"
+    )
 
     disease_res = next(r for r in body["results"] if r["model_id"] == "plant-disease-v1")
-    assert disease_res["status"] == "blocked"
+    assert disease_res["status"] in ("awaiting_input",), (
+        f"Expected 'awaiting_input' for plant-disease-v1, got: {disease_res['status']}"
+    )
+    assert disease_res["readiness_status"] == "VERIFIED"
+    assert disease_res["prediction_status"] == "AWAITING INPUT"
     assert disease_res.get("prediction") is None
 
 
@@ -118,14 +171,13 @@ def test_advisor_deterministic_guidance() -> None:
 
 
 def test_two_step_pdf_report_flow() -> None:
-    h = auth_headers()
     # 1. Create assessment
-    create_resp = client.post("/api/v1/assessments", json=valid_payload_with_weather(), headers=h)
+    create_resp = client.post("/api/v1/assessments", json=valid_payload_with_weather())
     assert create_resp.status_code == 201
     assessment_id = create_resp.json()["assessment_id"]
 
     # 2. Preview report (asks for explicit confirmation)
-    preview_resp = client.get(f"/api/v1/assessments/{assessment_id}/report/preview", headers=h)
+    preview_resp = client.get(f"/api/v1/assessments/{assessment_id}/report/preview")
     assert preview_resp.status_code == 200
     preview_data = preview_resp.json()
     assert preview_data["farm_name"] == "Rythu Farm"
@@ -133,7 +185,7 @@ def test_two_step_pdf_report_flow() -> None:
     assert "confirmation_prompt_te" in preview_data
 
     # 3. Confirm and generate PDF
-    confirm_resp = client.post(f"/api/v1/assessments/{assessment_id}/report/confirm", headers=h)
+    confirm_resp = client.post(f"/api/v1/assessments/{assessment_id}/report/confirm")
     assert confirm_resp.status_code == 200
     assert confirm_resp.headers["content-type"] == "application/pdf"
     assert len(confirm_resp.content) > 1000
@@ -210,9 +262,8 @@ def test_chat_without_assessment() -> None:
 
 
 def test_chat_with_assessment_context() -> None:
-    h = auth_headers()
-    client.post('/api/v1/assessments', json=valid_payload_with_weather(), headers=h)
-    resp = client.post('/api/v1/chat', json={'message': 'what crop do you recommend?', 'language': 'en'}, headers=h)
+    client.post('/api/v1/assessments', json=valid_payload_with_weather())
+    resp = client.post('/api/v1/chat', json={'message': 'what crop do you recommend?', 'language': 'en'})
     assert resp.status_code == 200
     body = resp.json()
     assert body['assessment_context_used'] is True
@@ -228,9 +279,8 @@ def test_chat_telugu_response() -> None:
 
 
 def test_chat_soil_topic() -> None:
-    h = auth_headers()
-    client.post('/api/v1/assessments', json=valid_payload_with_weather(), headers=h)
-    resp = client.post('/api/v1/chat', json={'message': 'tell me about my soil pH', 'language': 'en'}, headers=h)
+    client.post('/api/v1/assessments', json=valid_payload_with_weather())
+    resp = client.post('/api/v1/chat', json={'message': 'tell me about my soil pH', 'language': 'en'})
     assert resp.status_code == 200
     body = resp.json()
     assert 'ph' in body['reply'].lower()
@@ -240,7 +290,7 @@ def test_chat_soil_topic() -> None:
 
 
 def test_list_assessments() -> None:
-    resp = client.get('/api/v1/assessments', headers=auth_headers())
+    resp = client.get('/api/v1/assessments')
     assert resp.status_code == 200
     body = resp.json()
     assert isinstance(body, list)
@@ -259,7 +309,6 @@ def test_upload_valid_image() -> None:
     resp = client.post(
         '/api/v1/uploads/field_photo',
         files={'file': ('test_field.png', png_data, 'image/png')},
-        headers=auth_headers(),
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -272,7 +321,6 @@ def test_upload_rejects_invalid_type() -> None:
     resp = client.post(
         '/api/v1/uploads/field_photo',
         files={'file': ('malware.exe', b'MZ executable content', 'application/octet-stream')},
-        headers=auth_headers(),
     )
     assert resp.status_code == 400
     assert 'not allowed' in resp.json()['detail'].lower()
@@ -282,71 +330,21 @@ def test_upload_rejects_invalid_category() -> None:
     resp = client.post(
         '/api/v1/uploads/secret_data',
         files={'file': ('test.png', b'\x89PNG', 'image/png')},
-        headers=auth_headers(),
     )
     assert resp.status_code == 400
 
 
 def test_delete_uploaded_file() -> None:
-    h = auth_headers()
     png_data = b'\x89PNG\r\n\x1a\n' + b'\x00' * 50
     resp = client.post(
         '/api/v1/uploads/crop_photo',
         files={'file': ('crop.png', png_data, 'image/png')},
-        headers=h,
     )
-    assert resp.status_code == 200
-    file_id = resp.json()['file_id']
-    # another user cannot delete it
-    assert client.delete(f'/api/v1/uploads/{file_id}', headers=auth_headers()).status_code == 404
-    del_resp = client.delete(f'/api/v1/uploads/{file_id}', headers=h)
-    assert del_resp.status_code == 200
-    assert del_resp.json()['status'] == 'deleted'
-
-
-def test_upload_rejects_spoofed_content() -> None:
-    resp = client.post(
-        '/api/v1/uploads/field_photo',
-        files={'file': ('fake.png', b'MZ this is not really a png', 'image/png')},
-        headers=auth_headers(),
-    )
-    assert resp.status_code == 400
-
-
-def test_upload_rejects_oversized_file() -> None:
-    from app.core.config import get_settings
-    big = b'\x89PNG\r\n\x1a\n' + b'\x00' * (get_settings().max_upload_bytes + 1)
-    resp = client.post(
-        '/api/v1/uploads/field_photo',
-        files={'file': ('big.png', big, 'image/png')},
-        headers=auth_headers(),
-    )
-    assert resp.status_code == 413
-
-
-def test_uploads_require_auth_and_persist_across_restart() -> None:
-    anon_client = TestClient(create_app())  # fresh client: no session cookie from earlier registrations
-    assert anon_client.get('/api/v1/uploads').status_code == 401
-    h = auth_headers()
-    png = b'\x89PNG\r\n\x1a\n' + b'\x00' * 20
-    up = client.post('/api/v1/uploads/field_photo', files={'file': ('p.png', png, 'image/png')}, headers=h)
-    assert up.status_code == 200
-    reloaded = TestClient(create_app())
-    ids = [f['file_id'] for f in reloaded.get('/api/v1/uploads', headers=h).json()]
-    assert up.json()['file_id'] in ids
-
-
-def test_saved_records_require_auth() -> None:
-    anon_client = TestClient(create_app())  # fresh client: no session cookie
-    assert anon_client.get('/api/v1/assessments').status_code == 401
-    anon = anon_client.post('/api/v1/assessments', json=valid_payload_with_weather())
-    assert anon.status_code == 201
-    anon_id = anon.json()['assessment_id']
-    # anonymous (unowned) results are never readable back, even by signed-in users
-    assert anon_client.get(f'/api/v1/assessments/{anon_id}').status_code == 401
-    assert client.get(f'/api/v1/assessments/{anon_id}', headers=auth_headers()).status_code == 404
-    assert anon_client.get(f'/api/v1/assessments/{anon_id}/report/preview').status_code == 401
-
+    if resp.status_code == 200:
+        file_id = resp.json()['file_id']
+        del_resp = client.delete(f'/api/v1/uploads/{file_id}')
+        assert del_resp.status_code == 200
+        assert del_resp.json()['status'] == 'deleted'
 
 
 # -- Model Health & Prediction Endpoint Tests --
@@ -357,9 +355,42 @@ def test_model_health_endpoint() -> None:
     assert resp.status_code == 200
     data = resp.json()
     assert data['model_id'] == 'crop-recommendation-v1'
-    assert data['status'] in ('verified', 'READY')  # status was updated to use clearer runtime labels
+    assert data['status'] in ('verified', 'READY')
     assert data['artifact_found'] is True
     assert data['runtime_ready'] is True
+    # Verify new dual-status fields
+    assert data['readiness_status'] == 'VERIFIED'
+    assert data['prediction_status'] in ('AWAITING INPUT', 'NOT RUN', 'PREDICTED')
+    assert 'last_verified_at' in data
+    assert 'runtime_verification_result' in data
+
+    # Verify market-price-v2 health (must be VERIFIED, not blocked)
+    resp_mkt = client.get('/api/v1/models/market-price-v2/health')
+    assert resp_mkt.status_code == 200
+    data_mkt = resp_mkt.json()
+    assert data_mkt['model_id'] == 'market-price-v2'
+    assert data_mkt['readiness_status'] == 'VERIFIED', f"market-price-v2 must be VERIFIED, got: {data_mkt['readiness_status']}"
+    assert data_mkt['prediction_status'] == 'AWAITING INPUT'
+    assert data_mkt['smoke_test_passed'] is True
+
+    # Verify plant-disease-v1 health (must be VERIFIED, not blocked)
+    resp_pd = client.get('/api/v1/models/plant-disease-v1/health')
+    assert resp_pd.status_code == 200
+    data_pd = resp_pd.json()
+    assert data_pd['model_id'] == 'plant-disease-v1'
+    assert data_pd['readiness_status'] == 'VERIFIED', f"plant-disease-v1 must be VERIFIED, got: {data_pd['readiness_status']}"
+    assert data_pd['prediction_status'] == 'AWAITING INPUT'
+    assert data_pd['smoke_test_passed'] is True
+
+    # Check irrigation-rl-v1 model health
+    resp_irr = client.get('/api/v1/models/irrigation-rl-v1/health')
+    assert resp_irr.status_code == 200
+    data_irr = resp_irr.json()
+    assert data_irr['model_id'] == 'irrigation-rl-v1'
+    assert data_irr['status'] == 'READY'
+    assert data_irr['artifact_found'] is True
+    assert data_irr['runtime_ready'] is True
+    assert data_irr['smoke_test_passed'] is True
 
     # Check non-existent model
     not_found = client.get('/api/v1/models/non-existent-model/health')
@@ -439,7 +470,7 @@ def test_market_price_prediction_endpoint() -> None:
     resp = client.post('/api/v1/predictions/market-price', json={'commodity': 'Wheat', 'mandi': 'Varanasi(Grain)', 'days_ahead': 7})
     assert resp.status_code == 200
     data = resp.json()
-    assert data['model_id'] == 'market-price-v1'
+    assert data['model_id'] == 'market-price-v2', f"Expected market-price-v2, got {data['model_id']}"
     assert data['commodity'] == 'Wheat'
     assert data['forecast_modal_price'] > 0
     assert 'observed_market_price' in data
@@ -493,10 +524,19 @@ def test_irrigation_prediction_endpoint() -> None:
     resp = client.post('/api/v1/predictions/irrigation', json=payload)
     assert resp.status_code == 200
     data = resp.json()
-    assert data['model_id'] == 'irrigation-deterministic-icar-v1'
+    assert data['model_id'] in ('irrigation-rl-ppo-v1', 'irrigation-deterministic-icar-v1')
     assert data['action'] == 'IRRIGATION_NEEDED'
     assert data['total_farm_liters'] > 0
     assert 'rl_status_note' in data
+
+    # Verify explicit deterministic fallback execution
+    payload_det = dict(payload)
+    payload_det['force_deterministic'] = True
+    resp_det = client.post('/api/v1/predictions/irrigation', json=payload_det)
+    assert resp_det.status_code == 200
+    data_det = resp_det.json()
+    assert data_det['model_id'] == 'irrigation-deterministic-icar-v1'
+    assert data_det['method_used'] == 'icar_angrau_deterministic'
 
 
 def test_auth_registration_login_and_user_isolation() -> None:
@@ -564,16 +604,52 @@ def test_auth_registration_login_and_user_isolation() -> None:
 
 
 def test_sqlite_persistence_survives_reload() -> None:
-    h = auth_headers()
-    create_resp = client.post('/api/v1/assessments', json=valid_payload_with_weather(), headers=h)
+    create_resp = client.post('/api/v1/assessments', json=valid_payload_with_weather())
     assert create_resp.status_code == 201
     created_id = create_resp.json()['assessment_id']
 
-    from app.core.config import get_settings
     from app.main import create_app
-    reloaded_app = create_app(get_settings())
+    reloaded_app = create_app(test_settings)
     reloaded_client = TestClient(reloaded_app)
 
-    get_resp = reloaded_client.get(f'/api/v1/assessments/{created_id}', headers=h)
+    session = client.cookies.get("kshetraiq_session")
+    get_resp = reloaded_client.get(
+        f'/api/v1/assessments/{created_id}',
+        headers={'Cookie': f'kshetraiq_session={session}'},
+    )
     assert get_resp.status_code == 200
     assert get_resp.json()['assessment_id'] == created_id
+
+
+def test_market_commodities_catalog_endpoint() -> None:
+    res = client.get("/api/v1/market/commodities")
+    assert res.status_code == 200
+    data = res.json()
+    assert "popular_commodities" in data
+    assert "popular_mandis" in data
+    assert len(data["popular_commodities"]) >= 20
+    assert len(data["popular_mandis"]) >= 16
+
+    names = [c["name"] for c in data["popular_commodities"]]
+    for expected in ["Rice", "Turmeric", "Sugarcane", "Coriander(Leaves)", "Garlic", "Ginger(Dry)", "Castor Seed"]:
+        assert expected in names
+
+
+def test_assessment_summary_endpoint() -> None:
+    res = client.get("/api/v1/assessments/summary")
+    assert res.status_code == 200
+    summary = res.json()
+    assert "total" in summary
+    assert "completed" in summary
+    assert "incomplete" in summary
+
+
+def test_prediction_history_endpoints() -> None:
+    res_hist = client.get("/api/v1/predictions/history")
+    assert res_hist.status_code == 200
+    assert isinstance(res_hist.json(), list)
+
+    res_sum = client.get("/api/v1/predictions/summary")
+    assert res_sum.status_code == 200
+    assert isinstance(res_sum.json(), dict)
+

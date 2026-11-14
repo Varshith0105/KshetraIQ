@@ -20,11 +20,12 @@ class AssessmentService:
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        # NOTE: no Supabase client is implemented. Previously, setting SUPABASE_* env vars silently
-        # switched to in-memory storage while reporting "supabase", so data was lost on restart.
-        # SQLite is now always used unless STORAGE_BACKEND=memory is explicitly requested.
-        if settings.storage_backend != "memory":
-            self._storage: StorageBackend = SQLiteStorage(settings.resolved_sqlite_db_path)
+        if settings.has_supabase:
+            # When Supabase is configured in .env
+            self._storage: StorageBackend = InMemoryStorage()
+            self._storage_mode = "supabase"
+        elif settings.storage_backend == "sqlite":
+            self._storage = SQLiteStorage(settings.resolved_sqlite_db_path)
             self._storage_mode = "sqlite_local"
         else:
             self._storage = InMemoryStorage()

@@ -97,24 +97,56 @@ Open your browser at `http://localhost:3000`.
 | `GET` | `/api/v1/assessments/{id}` | Retrieve existing assessment record |
 | `GET` | `/api/v1/assessments/{id}/report/preview` | Step 1: Summary preview before PDF generation |
 | `POST` | `/api/v1/assessments/{id}/report/confirm` | Step 2: Confirm and download bilingual PDF report |
+| `POST` | `/api/v1/predictions/irrigation` | Autonomous PPO RL irrigation policy & ICAR water budgeting |
+| `GET` | `/api/v1/models/{model_id}/health` | Deep model health, smoke test status, and contract verification |
+
+---
+
+## 🤖 RL Irrigation Optimization Engine (PPO Policy)
+
+KshetraIQ integrates the verified PPO ActorCriticPolicy (`final_rl_irrigation_ppo_model.pkl`), trained with Stable-Baselines3 on normalized agro-climatic state observations:
+
+- **Artifact Path:** `Agriverse_Models/final_rl_irrigation_ppo_model.pkl` (128,011 bytes)
+- **Observation Space:** `Box(low=0.0, high=1.0, shape=(6,))`
+  1. `CropType / 2.0` (Rice / Paddy = 1.0, Groundnut = 2.0)
+  2. `CropDays / 100.0` (Crop age in days)
+  3. `Soil Moisture / 800.0` (Capacitive sensor scale 0–1000)
+  4. `Soil Temperature / 40.0` (°C)
+  5. `Ambient Temperature / 50.0` (°C)
+  6. `Relative Humidity / 100.0` (%)
+- **Action Space:** `Discrete(2)`:
+  - `0`: No Irrigation (preserves moisture, 0.0 mm water depth)
+  - `1`: Irrigation Needed (triggers verified ICAR volumetric depth and rotation scheduling)
+- **Runtime Engine:** High-performance pure NumPy forward pass matching PyTorch floating-point weights bit-for-bit, with automatic fallback to ICAR/ANGRAU deterministic water budgeting whenever inputs are unmapped, sensor data is unavailable, or the model artifact is absent.
 
 ---
 
 ## 🧪 Verification & Automated Testing
 
 ### Backend Test Suite
-All 12 backend unit and integration tests verify:
-- API health and model registry checks
+Automated test suite covers:
+- PPO RL model loading, PyTorch weight extraction, and shape verification
+- Genuine PPO inference smoke tests (dry soil -> irrigate, wet soil -> withhold)
+- Multi-crop routing (Rice/Groundnut -> PPO; others -> ICAR fallback)
+- Force deterministic fallback override
 - Guard against fabricating predictions on incomplete soil inputs
-- Rejection of invalid inputs (e.g. soil pH outside 3.0–10.0)
+- Rejection of invalid inputs (e.g. soil pH outside 3.0–10.0, negative moisture)
 - Verified crop inference against the production model
 - Deterministic ICAR/SAU agronomic advice generation
 - Two-step PDF report generation flow
 - Strict CORS preflight and origin verification
 
-Run tests via:
+Run irrigation tests:
 ```powershell
 $env:PYTHONPATH = "backend"
+$env:PYTHONIOENCODING = "utf-8"
+.\.venv\Scripts\python.exe -m pytest backend/tests/test_irrigation_ppo.py -v
+```
+
+Run all backend tests:
+```powershell
+$env:PYTHONPATH = "backend"
+$env:PYTHONIOENCODING = "utf-8"
 .\.venv\Scripts\python.exe -m pytest backend/tests -v
 ```
 
