@@ -71,9 +71,19 @@ class ProfileService:
         if db_path is None:
             self.db_path = self.settings.resolved_sqlite_db_path
         else:
-            self.db_path = db_path
+            self.db_path = self.settings.resolve_db_path(db_path)
 
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        except (PermissionError, OSError) as e:
+            logger.warning(
+                "ProfileService could not create directory %s: %s. Falling back to writable temp directory.",
+                self.db_path.parent,
+                e,
+            )
+            fallback = self.settings.get_safe_fallback_dir()
+            self.db_path = fallback / self.db_path.name
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_tables()
 
     def _get_connection(self) -> sqlite3.Connection:

@@ -54,11 +54,25 @@ class ActivityService:
     def __init__(self, settings: Settings | None = None, db_path: Path | None = None) -> None:
         self.settings = settings or get_settings()
         if db_path is not None:
-            self.db_path = db_path
+            self.db_path = self.settings.resolve_db_path(db_path)
         else:
             self.db_path = self.settings.resolved_sqlite_db_path
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._ensure_storage()
         self._init_db()
+
+    def _ensure_storage(self) -> None:
+        try:
+            self.db_path = self.settings.resolve_db_path(self.db_path)
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        except (PermissionError, OSError) as e:
+            logger.warning(
+                "ActivityService could not create directory %s: %s. Falling back to writable temp directory.",
+                self.db_path.parent,
+                e,
+            )
+            fallback = self.settings.get_safe_fallback_dir()
+            self.db_path = fallback / self.db_path.name
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
     @contextmanager
     def _connection(self) -> Generator[sqlite3.Connection, None, None]:

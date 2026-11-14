@@ -47,8 +47,17 @@ class UploadService:
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._upload_dir = Path(settings.resolved_model_directory).parent / ".uploads"
-        self._upload_dir.mkdir(parents=True, exist_ok=True)
+        self._upload_dir = settings.resolved_upload_directory
+        try:
+            self._upload_dir.mkdir(parents=True, exist_ok=True)
+        except (PermissionError, OSError) as e:
+            logger.warning(
+                "UploadService could not create directory %s: %s. Falling back to writable temp directory.",
+                self._upload_dir,
+                e,
+            )
+            self._upload_dir = settings.get_safe_fallback_dir() / "uploads"
+            self._upload_dir.mkdir(parents=True, exist_ok=True)
         self._records: dict[str, dict] = {}
         logger.info("Upload service initialized. Storage: %s", self._upload_dir)
 

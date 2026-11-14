@@ -391,10 +391,14 @@ class MarketPriceService:
         # using a root-relative fallback created a second, disconnected cache.
         from app.core.config import get_settings
 
+        self.settings = get_settings()
         self.models_dir = models_dir or (
             Path(__file__).resolve().parents[3] / "Agriverse_Models"
         )
-        self.db_path = db_path or get_settings().resolved_sqlite_db_path
+        if db_path is not None:
+            self.db_path = self.settings.resolve_db_path(db_path)
+        else:
+            self.db_path = self.settings.resolved_cache_db_path
         
         # Artifact paths
         self.improved_model_path = self.models_dir / "kshetraiq_improved_model.pkl"
@@ -425,6 +429,7 @@ class MarketPriceService:
     def _init_cache_table(self) -> None:
         """Create SQLite cache table for historical mandi arrivals."""
         try:
+            self.db_path = self.settings.resolve_db_path(self.db_path)
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
             with sqlite3.connect(str(self.db_path), timeout=5.0) as conn:
                 conn.execute(

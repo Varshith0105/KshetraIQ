@@ -1,8 +1,79 @@
 from functools import lru_cache
+import logging
+import os
 from pathlib import Path
+import secrets
+import tempfile
 
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
+
+
+def is_running_on_render() -> bool:
+    """Detect whether the application is running inside a Render container environment."""
+    return bool(os.environ.get("RENDER")) or bool(os.environ.get("IS_RENDER"))
+
+
+def get_safe_fallback_dir() -> Path:
+    """
+    Return a guaranteed-writable application-local temporary directory.
+    On Render/Linux, this is /tmp/kshetraiq.
+    On Windows, this is <tempdir>/kshetraiq.
+    """
+    if is_running_on_render() or os.name != "nt":
+        target = Path("/tmp/kshetraiq")
+    else:
+        target = Path(tempfile.gettempdir()) / "kshetraiq"
+    try:
+        target.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.warning("Could not create fallback directory %s: %s", target, e)
+    return target
+
+
+def ensure_writable_dir(directory: Path, fallback_dir: Path | None = None) -> Path:
+    """
+    Ensure the target directory exists and is writable.
+    If directory creation or writing fails (e.g. PermissionError on '/var/data' on Render
+    when no persistent disk is mounted), safely falls back to fallback_dir (/tmp/kshetraiq).
+    """
+    fb = fallback_dir or get_safe_fallback_dir()
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        # Test writability with a small probe file
+        probe = directory / f".probe_{secrets.token_hex(4)}"
+        try:
+            probe.touch(exist_ok=True)
+            probe.unlink(missing_ok=True)
+            return directory
+        except (PermissionError, OSError) as write_err:
+            logger.warning(
+                "Directory %s exists but is not writable (%s). Falling back to %s. "
+                "NOTE: /tmp storage is temporary and may be lost when the service restarts or redeploys.",
+                directory,
+                write_err,
+                fb,
+            )
+            try:
+                fb.mkdir(parents=True, exist_ok=True)
+            except Exception as fb_err:
+                logger.warning("Could not create fallback directory %s: %s", fb, fb_err)
+            return fb
+    except (PermissionError, OSError) as perm_err:
+        logger.warning(
+            "Directory %s cannot be created or accessed (%s). Falling back to %s. "
+            "NOTE: /tmp storage is temporary and may be lost when the service restarts or redeploys.",
+            directory,
+            perm_err,
+            fb,
+        )
+        try:
+            fb.mkdir(parents=True, exist_ok=True)
+        except Exception as fb_err:
+            logger.warning("Could not create fallback directory %s: %s", fb, fb_err)
+        return fb
 
 
 class Settings(BaseSettings):
@@ -21,7 +92,42 @@ class Settings(BaseSettings):
     supabase_service_role_key: str | None = Field(default=None, validation_alias=AliasChoices("SUPABASE_SERVICE_ROLE_KEY", "KSHETRAIQ_SUPABASE_SERVICE_ROLE_KEY"))
 
     storage_backend: str = Field(default="sqlite", validation_alias=AliasChoices("KSHETRAIQ_STORAGE_BACKEND", "STORAGE_BACKEND"))
-    sqlite_db_path: Path = Field(default=Path("backend/.tmp/kshetraiq.db"), validation_alias=AliasChoices("KSHETRAIQ_SQLITE_PATH", "SQLITE_PATH"))
+    sqlite_db_path: Path | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "KSHETRAIQ_SQLITE_PATH",
+            "SQLITE_PATH",
+            "KSHETRAIQ_DB_PATH",
+            "DB_PATH",
+            "DATABASE_PATH",
+        ),
+    )
+    cache_db_path: Path | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "KSHETRAIQ_CACHE_DB_PATH",
+            "CACHE_DB_PATH",
+            "KSHETRAIQ_CACHE_PATH",
+            "CACHE_PATH",
+        ),
+    )
+    cache_dir: Path | None = Field(
+        default=None,
+        validation_alias=AliasChoices("KSHETRAIQ_CACHE_DIR", "CACHE_DIR"),
+    )
+    upload_dir: Path | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "KSHETRAIQ_UPLOAD_DIR",
+            "UPLOAD_DIR",
+            "KSHETRAIQ_UPLOAD_DIRECTORY",
+            "UPLOAD_DIRECTORY",
+        ),
+    )
+    data_dir: Path | None = Field(
+        default=None,
+        validation_alias=AliasChoices("KSHETRAIQ_DATA_DIR", "DATA_DIR"),
+    )
 
     google_client_id: str | None = Field(default=None, validation_alias=AliasChoices("GOOGLE_CLIENT_ID", "KSHETRAIQ_GOOGLE_CLIENT_ID"))
     google_client_secret: str | None = Field(default=None, validation_alias=AliasChoices("GOOGLE_CLIENT_SECRET", "KSHETRAIQ_GOOGLE_CLIENT_SECRET"))
@@ -64,16 +170,99 @@ class Settings(BaseSettings):
 
     @property
     def resolved_sqlite_db_path(self) -> Path:
-        p = self.sqlite_db_path
+        """
+        Resolve SQLite database path safely across Render, Windows, and local Linux.
+        If a persistent disk path (e.g. /var/data/kshetraiq.db) is configured but no disk
+        is mounted or writable, safely falls back to /tmp/kshetraiq/kshetraiq.db.
+        """
+        # 1. Determine candidate path
+        if self.sqlite_db_path is not None:
+            p = self.sqlite_db_path
+        elif self.data_dir is not None:
+            p = self.data_dir / "kshetraiq.db"
+        elif is_running_on_render():
+            render_disk_dir = Path("/var/data")
+            if render_disk_dir.is_dir() and os.access(render_disk_dir, os.W_OK):
+                p = render_disk_dir / "kshetraiq.db"
+            else:
+                p = Path("/tmp/kshetraiq/kshetraiq.db")
+        else:
+            p = Path("backend/.tmp/kshetraiq.db")
+
+        # In-memory database check
+        if str(p) == ":memory:":
+            return Path(":memory:")
+
+        # 2. Resolve relative candidate paths against repository root
         if not p.is_absolute():
             root_candidate = (Path(__file__).resolve().parents[3] / p).resolve()
             if root_candidate.is_file() or root_candidate.parent.exists():
-                return root_candidate
-            backend_candidate = (Path(__file__).resolve().parents[2] / p).resolve()
-            if backend_candidate.is_file() or backend_candidate.parent.exists():
-                return backend_candidate
-            return root_candidate
-        return p
+                p = root_candidate
+            else:
+                backend_candidate = (Path(__file__).resolve().parents[2] / p).resolve()
+                if backend_candidate.is_file() or backend_candidate.parent.exists():
+                    p = backend_candidate
+                else:
+                    p = root_candidate
+
+        # 3. Ensure parent directory is writable; fallback to /tmp/kshetraiq on PermissionError
+        safe_parent = ensure_writable_dir(p.parent)
+        return safe_parent / p.name
+
+    def resolve_db_path(self, db_path: Path | str | None = None) -> Path:
+        """
+        Safely resolve any candidate database path against writable storage.
+        If parent directory is not writable (e.g. /var/data without persistent disk),
+        falls back to a writable directory without raising PermissionError.
+        """
+        if db_path is None:
+            return self.resolved_sqlite_db_path
+        p = Path(db_path)
+        if str(p) == ":memory:":
+            return Path(":memory:")
+        if not p.is_absolute():
+            p = (Path(__file__).resolve().parents[3] / p).resolve()
+        safe_parent = ensure_writable_dir(p.parent)
+        return safe_parent / p.name
+
+    @property
+    def resolved_cache_db_path(self) -> Path:
+        """
+        Resolve SQLite cache database path for mandi observations and market cache.
+        Defaults to sharing the primary SQLite database path unless explicitly configured.
+        """
+        if self.cache_db_path is not None:
+            return self.resolve_db_path(self.cache_db_path)
+        if self.cache_dir is not None:
+            safe_dir = ensure_writable_dir(self.cache_dir)
+            return safe_dir / "mandi_cache.db"
+        return self.resolved_sqlite_db_path
+
+    @property
+    def resolved_upload_directory(self) -> Path:
+        """
+        Resolve file upload directory safely across environments.
+        """
+        if self.upload_dir is not None:
+            p = self.upload_dir
+            if not p.is_absolute():
+                p = (Path(__file__).resolve().parents[3] / p).resolve()
+            return ensure_writable_dir(p)
+        if self.data_dir is not None:
+            return ensure_writable_dir(self.data_dir / "uploads")
+        if is_running_on_render():
+            render_disk_dir = Path("/var/data")
+            if render_disk_dir.is_dir() and os.access(render_disk_dir, os.W_OK):
+                return ensure_writable_dir(render_disk_dir / "uploads")
+            return ensure_writable_dir(Path("/tmp/kshetraiq/uploads"))
+        local_uploads = (Path(__file__).resolve().parents[3] / ".uploads").resolve()
+        return ensure_writable_dir(local_uploads)
+
+    def ensure_writable_dir(self, directory: Path, fallback_dir: Path | None = None) -> Path:
+        return ensure_writable_dir(directory, fallback_dir)
+
+    def get_safe_fallback_dir(self) -> Path:
+        return get_safe_fallback_dir()
 
     @property
     def has_supabase(self) -> bool:

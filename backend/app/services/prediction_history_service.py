@@ -87,10 +87,23 @@ class PredictionRecord:
 class PredictionHistoryService:
     """Manages prediction persistence in SQLite with strict farmer isolation."""
 
-    def __init__(self, settings: Optional[Settings] = None) -> None:
+    def __init__(self, settings: Optional[Settings] = None, db_path: Optional[Path] = None) -> None:
         self.settings = settings or get_settings()
-        self.db_path = self.settings.resolved_sqlite_db_path
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        if db_path is not None:
+            self.db_path = self.settings.resolve_db_path(db_path)
+        else:
+            self.db_path = self.settings.resolved_sqlite_db_path
+        try:
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        except (PermissionError, OSError) as e:
+            logger.warning(
+                "PredictionHistoryService could not create directory %s: %s. Falling back to writable temp directory.",
+                self.db_path.parent,
+                e,
+            )
+            fallback = self.settings.get_safe_fallback_dir()
+            self.db_path = fallback / self.db_path.name
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
     def _get_connection(self) -> sqlite3.Connection:
