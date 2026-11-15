@@ -79,7 +79,7 @@ class CropRecommender:
             return
 
         try:
-            self._model = joblib.load(model_file)
+            self._model = joblib.load(model_file, mmap_mode="r")
             if features_file.is_file():
                 self._feature_names = list(joblib.load(features_file))
             else:

@@ -60,7 +60,7 @@ class CropYieldService:
             return
 
         try:
-            self._model = joblib.load(model_file)
+            self._model = joblib.load(model_file, mmap_mode="r")
             self._is_loaded = True
             logger.info("Crop yield prediction model loaded successfully from %s", model_file)
         except Exception as e:

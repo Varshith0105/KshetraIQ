@@ -191,6 +191,23 @@ def test_two_step_pdf_report_flow() -> None:
     assert len(confirm_resp.content) > 1000
     assert confirm_resp.content.startswith(b"%PDF")
 
+    # 4. Fallback test: Missing assessment ID on server can be fulfilled via client payload body
+    missing_id = "00000000-0000-0000-0000-000000000000"
+    missing_preview_get = client.get(f"/api/v1/assessments/{missing_id}/report/preview")
+    assert missing_preview_get.status_code == 404
+
+    # Supplying client assessment payload in POST recovers preview and generates PDF
+    client_body = create_resp.json()
+    client_body["assessment_id"] = missing_id
+    fallback_preview = client.post(f"/api/v1/assessments/{missing_id}/report/preview", json=client_body)
+    assert fallback_preview.status_code == 200
+    assert fallback_preview.json()["farm_name"] == "Rythu Farm"
+
+    fallback_pdf = client.post(f"/api/v1/assessments/{missing_id}/report/confirm", json=client_body)
+    assert fallback_pdf.status_code == 200
+    assert fallback_pdf.headers["content-type"] == "application/pdf"
+    assert fallback_pdf.content.startswith(b"%PDF")
+
 
 def test_cors_preflight_for_network_ip() -> None:
     headers = {

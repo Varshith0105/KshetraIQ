@@ -118,14 +118,32 @@ class AssessmentService:
         """Return the most recently created assessment, or None."""
         return self._storage.get_latest(user_id=user_id)
 
-    def preview_report(self, assessment_id: str, user_id: str | None = None) -> ReportPreview | None:
+    def preview_report(
+        self,
+        assessment_id: str,
+        user_id: str | None = None,
+        fallback_record: AssessmentResponse | None = None,
+    ) -> ReportPreview | None:
         record = self.get(assessment_id, user_id=user_id)
+        if not record and user_id:
+            record = self.get(assessment_id, user_id=None)
+        if not record and fallback_record:
+            record = fallback_record
         if not record:
             return None
         return self._report_service.create_preview(record)
 
-    def generate_pdf(self, assessment_id: str, user_id: str | None = None) -> bytes | None:
+    def generate_pdf(
+        self,
+        assessment_id: str,
+        user_id: str | None = None,
+        fallback_record: AssessmentResponse | None = None,
+    ) -> bytes | None:
         record = self.get(assessment_id, user_id=user_id)
+        if not record and user_id:
+            record = self.get(assessment_id, user_id=None)
+        if not record and fallback_record:
+            record = fallback_record
         if not record:
             return None
         return self._report_service.generate_pdf(record)

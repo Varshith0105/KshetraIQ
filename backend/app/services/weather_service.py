@@ -41,7 +41,8 @@ DISTRICT_GEOCODING_OVERRIDES: dict[str, str] = {
     "Sri Balaji": "Tirupati",
     "Tirupati": "Tirupati",
     # Telangana new districts
-    "Sangareddy": "Sangareddy",
+    "Sangareddy": "Sangareddi",
+    "Sangareddi": "Sangareddi",
     "Vikarabad": "Vikarabad",
     "Medchal Malkajgiri": "Medchal",
     "Yadadri Bhongir": "Bhongir",

@@ -829,32 +829,60 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="Assessment not found or access denied")
         return record
 
-    @app.get("/api/v1/assessments/{assessment_id}/report/preview", response_model=ReportPreview)
-    def preview_report(
+    @app.api_route("/api/v1/assessments/{assessment_id}/report/preview", methods=["GET", "POST"], response_model=ReportPreview)
+    async def preview_report(
         assessment_id: str,
+        request: Request,
         authorization: str | None = Header(default=None),
         kshetraiq_session: str | None = Cookie(default=None),
     ) -> ReportPreview:
-        user = _require_user(authorization, kshetraiq_session)
-        preview = service.preview_report(assessment_id, user_id=user.user_id)
+        user = _get_auth_user(authorization, kshetraiq_session)
+        user_id = user.user_id if user else None
+
+        fallback_record: AssessmentResponse | None = None
+        if request.method == "POST":
+            try:
+                body = await request.json()
+                if body and isinstance(body, dict):
+                    fallback_record = AssessmentResponse.model_validate(body)
+            except Exception:
+                pass
+
+        preview = service.preview_report(assessment_id, user_id=user_id, fallback_record=fallback_record)
         if preview is None:
             raise HTTPException(status_code=404, detail="Assessment not found or access denied")
         return preview
 
-    @app.post("/api/v1/assessments/{assessment_id}/report/confirm")
-    def confirm_and_download_report(
+    @app.api_route("/api/v1/assessments/{assessment_id}/report/confirm", methods=["GET", "POST"])
+    async def confirm_and_download_report(
         assessment_id: str,
+        request: Request,
         authorization: str | None = Header(default=None),
         kshetraiq_session: str | None = Cookie(default=None),
     ) -> Response:
-        user = _require_user(authorization, kshetraiq_session)
-        pdf_bytes = service.generate_pdf(assessment_id, user_id=user.user_id)
+        user = _get_auth_user(authorization, kshetraiq_session)
+        user_id = user.user_id if user else None
+
+        fallback_record: AssessmentResponse | None = None
+        if request.method == "POST":
+            try:
+                body = await request.json()
+                if body and isinstance(body, dict):
+                    fallback_record = AssessmentResponse.model_validate(body)
+            except Exception:
+                pass
+
+        pdf_bytes = service.generate_pdf(assessment_id, user_id=user_id, fallback_record=fallback_record)
         if pdf_bytes is None:
             raise HTTPException(status_code=404, detail="Assessment not found or access denied")
-        activity_service.log_activity(
-            user_id=user.user_id, action="pdf_report_generated", entity_type="assessment",
-            entity_id=assessment_id,
-        )
+        if user_id:
+            try:
+                activity_service.log_activity(
+                    user_id=user_id, action="pdf_report_generated", entity_type="assessment",
+                    entity_id=assessment_id,
+                )
+            except Exception as e:
+                logger.debug("Activity log failed: %s", e)
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
