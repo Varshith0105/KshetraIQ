@@ -33,6 +33,16 @@ export function getStoredToken(): string | null {
   }
 }
 
+export function getStoredUser(): User | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(USER_STORAGE_KEY) || sessionStorage.getItem(USER_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function setStoredSession(token: string, user: User, rememberMe: boolean): void {
   if (typeof window === "undefined") return;
   try {
@@ -87,9 +97,12 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(() => getStoredUser());
+  const [token, setToken] = useState<string | null>(() => getStoredToken());
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return !getStoredToken() && !getStoredUser();
+  });
 
   const apiUrl = getApiBaseUrl();
 
@@ -130,39 +143,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (effectiveToken) {
         headers["Authorization"] = `Bearer ${effectiveToken}`;
       }
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
       const res = await fetch(`${apiUrl}/api/v1/auth/me`, {
         method: "GET",
         headers,
         credentials: "include",
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
       if (res.ok) {
         const data: User = await res.json();
         setUser(data);
         if (effectiveToken) {
           setToken(effectiveToken);
+          setStoredSession(effectiveToken, data, true);
         }
         return data;
       }
-      // If 401/error and we had an invalid session, reset client state
-      clearStoredSession();
-      setUser(null);
-      setToken(null);
-      return null;
+      // If 401 Unauthorized explicitly, session has expired
+      if (res.status === 401) {
+        clearStoredSession();
+        setUser(null);
+        setToken(null);
+        return null;
+      }
+      return user || getStoredUser();
     } catch {
-      // Network or offline: clean state
-      clearStoredSession();
-      setUser(null);
-      setToken(null);
-      return null;
+      // Network error, offline, or Render waking up: retain stored session so user is not logged out
+      return user || getStoredUser();
     } finally {
       setLoading(false);
     }
-  }, [apiUrl, token]);
+  }, [apiUrl, token, user]);
 
   useEffect(() => {
     const storedToken = getStoredToken();
-    if (storedToken) {
+    const storedUser = getStoredUser();
+    if (storedToken && !token) {
       setToken(storedToken);
+    }
+    if (storedUser && !user) {
+      setUser(storedUser);
+      setLoading(false);
     }
     refreshUser(storedToken || undefined);
   }, [refreshUser]);

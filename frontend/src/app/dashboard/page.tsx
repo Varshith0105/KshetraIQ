@@ -555,7 +555,7 @@ export default function DashboardPage() {
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [pdfError, setPdfError] = useState("");
 
-  const [apiUrl, setApiUrl] = useState("http://localhost:8000");
+  const [apiUrl, setApiUrl] = useState<string>(() => getApiBaseUrl());
 
   const refreshModelCatalog = useCallback(async () => {
     if (!apiUrl) return;
@@ -1314,18 +1314,24 @@ export default function DashboardPage() {
   async function handlePredictWeatherRisk() {
     setWeatherRiskLoading(true);
     setWeatherRiskError("");
+    const activeToken = authToken || globalToken;
     try {
       const res = await fetch(`${apiUrl}/api/v1/predictions/weather-risk`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(activeToken ? { Authorization: `Bearer ${activeToken}` } : {}),
+        },
+        credentials: "include",
         body: JSON.stringify({
           month: 7,
           season: season || "Kharif",
-          state: state || "Andhra Pradesh",
-          avg_temp_c: Number(dashWeather?.temp ?? temp ?? 31.0),
+          state: state || "Telangana",
+          district: district || "Sangareddy",
+          avg_temp_c: Number(dashWeather?.temp ?? temp ?? 28.7),
           wind_speed_kmh: 14.0,
           air_pressure_hpa: 1010.0,
-          rainfall_mm: Number(dashWeather?.rainfall ?? rainfall ?? 120.0),
+          rainfall_mm: Number(dashWeather?.rainfall ?? rainfall ?? 692.7),
         }),
       });
       if (!res.ok) {
@@ -1454,6 +1460,8 @@ export default function DashboardPage() {
     try {
       const formData = new FormData();
       formData.append("file", diseaseFile);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 45000);
       const res = await fetch(`${apiUrl}/api/v1/predictions/plant-disease`, {
         method: "POST",
         headers: {
@@ -1461,7 +1469,9 @@ export default function DashboardPage() {
         },
         credentials: "include",
         body: formData,
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
       if (!res.ok) {
         const err = await res.json().catch(() => null);
         throw new Error(err?.detail || `HTTP ${res.status}`);
@@ -1469,7 +1479,7 @@ export default function DashboardPage() {
       const data = await res.json();
       setDiseaseResult(data);
     } catch (e: any) {
-      setDiseaseError(e.message || "Disease screening failed");
+      setDiseaseError(e?.name === "AbortError" ? "Disease diagnostic timed out. Please try with a smaller image." : (e.message || "Disease screening failed"));
     } finally {
       setDiseaseLoading(false);
     }
@@ -1768,34 +1778,11 @@ export default function DashboardPage() {
   }
 
   /* ── report flow ── */
-  async function openReportConfirmation() {
+  function openReportConfirmation() {
     if (!result) return;
     setPdfError("");
-    const activeToken = authToken || globalToken;
-    try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/assessments/${result.assessment_id}/report/preview`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(activeToken ? { Authorization: `Bearer ${activeToken}` } : {}),
-          },
-          body: JSON.stringify(result),
-          credentials: "include",
-        }
-      );
-      if (res.ok) {
-        const previewData: ReportPreview = await res.json();
-        setReportPreview(previewData);
-        setShowReportModal(true);
-        return;
-      }
-    } catch (e) {
-      console.warn("Backend report preview fetch failed, using client fallback", e);
-    }
 
-    // Client fallback: construct verified ReportPreview directly from result so modal ALWAYS opens
+    // Synchronously construct verified ReportPreview directly from result so modal ALWAYS opens in 0ms
     const cropModel = result.results?.find((r) => r.model_id === "crop-recommendation-v1");
     const pred = cropModel?.prediction;
     setReportPreview({
@@ -1828,6 +1815,26 @@ export default function DashboardPage() {
       disclaimer: "The generated PDF includes traceable model versions and explicit agronomic assumptions.",
     });
     setShowReportModal(true);
+
+    // In parallel, sync with backend preview if available
+    const activeToken = authToken || globalToken;
+    fetch(
+      `${apiUrl}/api/v1/assessments/${result.assessment_id}/report/preview`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(activeToken ? { Authorization: `Bearer ${activeToken}` } : {}),
+        },
+        body: JSON.stringify(result),
+        credentials: "include",
+      }
+    )
+      .then((res) => (res.ok ? res.json() : null))
+      .then((previewData) => {
+        if (previewData) setReportPreview(previewData);
+      })
+      .catch(() => {});
   }
 
   async function confirmAndDownloadPdf() {
@@ -1836,6 +1843,8 @@ export default function DashboardPage() {
     setPdfError("");
     const activeToken = authToken || globalToken;
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
       const res = await fetch(
         `${apiUrl}/api/v1/assessments/${result.assessment_id}/report/confirm`,
         {
@@ -1846,11 +1855,13 @@ export default function DashboardPage() {
           },
           body: JSON.stringify(result),
           credentials: "include",
+          signal: controller.signal,
         }
       );
+      clearTimeout(timeoutId);
       if (!res.ok) {
         const errJson = await res.json().catch(() => null);
-        throw new Error(errJson?.detail || "PDF generation failed on server.");
+        throw new Error(errJson?.detail || `PDF generation failed on server (HTTP ${res.status}).`);
       }
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
@@ -1862,8 +1873,8 @@ export default function DashboardPage() {
       a.remove();
       window.URL.revokeObjectURL(url);
       setShowReportModal(false);
-    } catch (err) {
-      setPdfError(err instanceof Error ? err.message : "PDF export failed.");
+    } catch (err: any) {
+      setPdfError(err?.name === "AbortError" ? "PDF generation timed out. Please retry." : (err instanceof Error ? err.message : "PDF export failed."));
     } finally {
       setGeneratingPdf(false);
     }
@@ -5019,7 +5030,7 @@ export default function DashboardPage() {
   /* ══════════════════════════════════════════════════════════
      RENDER
   ══════════════════════════════════════════════════════════ */
-  if (authChecking || !globalUser) {
+  if (authChecking && !globalUser) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-primary)", fontFamily: "Inter, sans-serif" }}>
         <div style={{ textAlign: "center" }}>

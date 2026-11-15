@@ -144,10 +144,13 @@ class PlantDiseaseService:
     """Inference service for foliar crop leaf disease screening."""
 
     def __init__(self, artifact_path: Path | None = None) -> None:
-        self.artifact_path = artifact_path or (
-            Path(__file__).resolve().parents[3] / "capstone-final" / "plant_disease.h5"
-        )
+        base_dir = Path(__file__).resolve().parents[3] / "capstone-final"
+        self.tflite_path = base_dir / "plant_disease.tflite"
+        self.artifact_path = artifact_path or (base_dir / "plant_disease.h5")
         self._model: Any = None
+        self._is_tflite: bool = False
+        self._tflite_input_details: Any = None
+        self._tflite_output_details: Any = None
         self._load_error: str | None = None
 
     def _ensure_loaded(self) -> None:
@@ -156,8 +159,25 @@ class PlantDiseaseService:
         if self._load_error:
             raise RuntimeError(f"Plant disease model unavailable: {self._load_error}")
 
+        # 1. Prefer lightweight TFLite model (23MB vs 98MB, low memory footprint)
+        if self.tflite_path.exists():
+            try:
+                import tensorflow as tf
+                logger.info("Loading plant disease vision model from TFLite: %s", self.tflite_path)
+                interp = tf.lite.Interpreter(model_path=str(self.tflite_path))
+                interp.allocate_tensors()
+                self._tflite_input_details = interp.get_input_details()
+                self._tflite_output_details = interp.get_output_details()
+                self._model = interp
+                self._is_tflite = True
+                logger.info("Successfully loaded plant disease TFLite model.")
+                return
+            except Exception as te:
+                logger.warning("Could not load TFLite model, falling back to Keras: %s", te)
+
+        # 2. Fallback to Keras H5 model
         if not self.artifact_path.exists():
-            self._load_error = f"Artifact not found at {self.artifact_path}"
+            self._load_error = f"Artifact not found at {self.artifact_path} or {self.tflite_path}"
             raise FileNotFoundError(self._load_error)
 
         try:
@@ -165,6 +185,7 @@ class PlantDiseaseService:
 
             logger.info("Loading plant disease vision model from %s", self.artifact_path)
             self._model = keras.models.load_model(str(self.artifact_path), compile=False)
+            self._is_tflite = False
             logger.info("Successfully loaded plant disease vision model.")
         except Exception as e:
             self._load_error = f"Failed to load Keras model: {e}"
@@ -185,7 +206,7 @@ class PlantDiseaseService:
             return True
         if self._load_error:
             return False
-        return self.artifact_path.is_file()
+        return self.tflite_path.is_file() or self.artifact_path.is_file()
 
     def predict_image(self, image_bytes: bytes, filename: str = "upload.jpg") -> dict[str, Any]:
         """Preprocess uploaded leaf photograph and run deep CNN inference."""
@@ -218,7 +239,15 @@ class PlantDiseaseService:
         batch = np.expand_dims(img_array, axis=0)
 
         # Run inference
-        probs = self._model.predict(batch, verbose=0)[0]
+        if self._is_tflite:
+            inp_idx = self._tflite_input_details[0]["index"]
+            out_idx = self._tflite_output_details[0]["index"]
+            self._model.set_tensor(inp_idx, batch)
+            self._model.invoke()
+            probs = self._model.get_tensor(out_idx)[0]
+        else:
+            probs = self._model.predict(batch, verbose=0)[0]
+
         top_idx = int(np.argmax(probs))
         top_class = PLANT_DISEASE_CLASSES[top_idx]
         confidence = float(probs[top_idx])

@@ -589,7 +589,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         image_bytes = await _read_limited(file)
 
         try:
-            result = plant_disease_service.predict_image(
+            import asyncio
+            result = await asyncio.to_thread(
+                plant_disease_service.predict_image,
                 image_bytes=image_bytes,
                 filename=file.filename or "uploaded_leaf.jpg",
             )
