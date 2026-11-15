@@ -429,3 +429,156 @@ def test_farm_profile_rejects_a_district_from_another_state(svc: AuthService) ->
             farm_name="Location Farm", district="Sangareddy", state="Andhra Pradesh", acreage=2,
             season="Kharif", irrigation_method="Drip", water_availability="Borewell",
         ))
+
+
+# ────────── 8. API Cookie & Session Resolution Integration Tests ──────────
+
+def test_auth_api_cookie_attributes_in_production(tmp_path: Path) -> None:
+    from fastapi.testclient import TestClient
+    from app.main import create_app
+
+    prod_settings = Settings(
+        environment="production",
+        sqlite_db_path=tmp_path / "prod_auth.db",
+        google_client_id="mock-id",
+        google_client_secret="mock-secret",
+    )
+    app = create_app(prod_settings)
+    with TestClient(app) as client:
+        # 1. Register user
+        reg_resp = client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": "prod_cookie@example.com",
+                "password": "SecurePassword123!",
+                "full_name": "Prod Cookie Tester",
+            },
+        )
+        assert reg_resp.status_code == 201
+        cookie_header = reg_resp.headers.get("set-cookie", "")
+        # Must have SameSite=None, Secure, HttpOnly, Path=/
+        assert "samesite=none" in cookie_header.lower()
+        assert "secure" in cookie_header.lower()
+        assert "httponly" in cookie_header.lower()
+        assert "path=/" in cookie_header.lower()
+        token = reg_resp.json()["token"]
+
+        # 2. Access /api/v1/auth/me via Bearer token
+        me_bearer = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+        assert me_bearer.status_code == 200
+        assert me_bearer.json()["email"] == "prod_cookie@example.com"
+
+        # 3. Access /api/v1/auth/me via Cookie
+        me_cookie = client.get("/api/v1/auth/me", cookies={"kshetraiq_session": token})
+        assert me_cookie.status_code == 200
+        assert me_cookie.json()["email"] == "prod_cookie@example.com"
+
+        # 4. Access /api/v1/auth/me unauthorized
+        me_unauth = client.get("/api/v1/auth/me")
+        assert me_unauth.status_code == 401
+        assert me_unauth.json()["detail"] == "Authentication required or token expired."
+
+        # 5. Logout clears cookie and invalidates session
+        logout_resp = client.post("/api/v1/auth/logout", headers={"Authorization": f"Bearer {token}"})
+        assert logout_resp.status_code == 200
+        logout_cookie = logout_resp.headers.get("set-cookie", "").lower()
+        assert "samesite=none" in logout_cookie
+        assert "secure" in logout_cookie
+
+        # 6. Subsequent request with invalidated token returns 401
+        me_after_logout = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+        assert me_after_logout.status_code == 401
+
+
+def test_auth_api_cookie_attributes_in_development(tmp_path: Path) -> None:
+    from fastapi.testclient import TestClient
+    from app.main import create_app
+
+    dev_settings = Settings(
+        environment="development",
+        sqlite_db_path=tmp_path / "dev_auth.db",
+        google_client_id="mock-id",
+        google_client_secret="mock-secret",
+    )
+    app = create_app(dev_settings)
+    with TestClient(app) as client:
+        reg_resp = client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": "dev_cookie@example.com",
+                "password": "SecurePassword123!",
+                "full_name": "Dev Cookie Tester",
+            },
+        )
+        assert reg_resp.status_code == 201
+        cookie_header = reg_resp.headers.get("set-cookie", "").lower()
+        # In dev HTTP: SameSite=Lax (not None without Secure)
+        assert "samesite=lax" in cookie_header
+
+
+def test_google_callback_endpoint_full_flow(tmp_path: Path) -> None:
+    from fastapi.testclient import TestClient
+    from app.main import create_app
+
+    prod_settings = Settings(
+        environment="production",
+        sqlite_db_path=tmp_path / "google_flow.db",
+        google_client_id="mock-client-id",
+        google_client_secret="mock-client-secret",
+        google_redirect_uri="https://kshetra-iq.vercel.app/auth/callback",
+    )
+    app = create_app(prod_settings)
+    with TestClient(app) as client:
+        # Step 1: Request Google Auth URL
+        url_resp = client.get("/api/v1/auth/google/url?redirect_uri=https://kshetra-iq.vercel.app/auth/callback")
+        assert url_resp.status_code == 200
+        data = url_resp.json()
+        assert data["configured"] is True
+        assert data["state"] is not None
+        state = data["state"]
+
+        # Step 2: Post to Google Callback endpoint with mock exchange
+        with patch("httpx.Client") as mock_client_cls:
+            mock_client = MagicMock()
+            mock_client.__enter__.return_value = mock_client
+            mock_client.post.return_value = MagicMock(
+                status_code=200,
+                json=lambda: {"access_token": "google-mock-access-token"},
+            )
+            mock_client.get.return_value = MagicMock(
+                status_code=200,
+                json=lambda: {
+                    "id": "google-sub-987654",
+                    "email": "google_farmer@example.com",
+                    "verified_email": True,
+                    "name": "Verified Google Farmer",
+                    "picture": "https://lh3.googleusercontent.com/avatar.jpg",
+                },
+            )
+            mock_client_cls.return_value = mock_client
+
+            cb_resp = client.post(
+                "/api/v1/auth/google/callback",
+                json={
+                    "code": "4/mock_auth_code",
+                    "state": state,
+                    "redirect_uri": "https://kshetra-iq.vercel.app/auth/callback",
+                },
+            )
+            assert cb_resp.status_code == 200
+            cb_data = cb_resp.json()
+            assert "token" in cb_data
+            assert cb_data["user"]["email"] == "google_farmer@example.com"
+            assert cb_data["user"]["full_name"] == "Verified Google Farmer"
+
+            # Check Cookie header
+            set_cookie = cb_resp.headers.get("set-cookie", "").lower()
+            assert "samesite=none" in set_cookie
+            assert "secure" in set_cookie
+            assert "httponly" in set_cookie
+
+            token = cb_data["token"]
+            # Step 3: Call /api/v1/auth/me with Bearer token
+            me_resp = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+            assert me_resp.status_code == 200
+            assert me_resp.json()["email"] == "google_farmer@example.com"

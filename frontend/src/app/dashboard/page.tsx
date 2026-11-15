@@ -489,7 +489,7 @@ const DEFAULT_POPULAR_MANDIS = [
 ══════════════════════════════════════════════════════════════ */
 export default function DashboardPage() {
   const router = useRouter();
-  const { user: globalUser, loading: authChecking, logout: globalLogout, token: globalToken } = useAuth();
+  const { user: globalUser, loading: authChecking, logout: globalLogout, token: globalToken, handleAuthSuccess } = useAuth();
   const { registerScreen, screenContext } = useScreenContext();
   const _lastScreenRef = useRef<string>("");
 
@@ -584,7 +584,10 @@ export default function DashboardPage() {
     if (!globalUser || !apiUrl) return;
     setProfileLoading(true); setProfileNotice("");
     try {
-      const response = await fetch(`${apiUrl}/api/v1/farm-profile`, { credentials: "include" });
+      const response = await fetch(`${apiUrl}/api/v1/farm-profile`, {
+        headers: globalToken ? { Authorization: `Bearer ${globalToken}` } : {},
+        credentials: "include",
+      });
       if (response.status === 404) { setSavedFarmProfile(null); return; }
       if (!response.ok) throw new Error("Could not load the saved farm profile.");
       const profile: FarmProfile = await response.json();
@@ -592,7 +595,7 @@ export default function DashboardPage() {
     } catch (err) {
       setProfileNotice(err instanceof Error ? err.message : "Could not load the saved farm profile.");
     } finally { setProfileLoading(false); }
-  }, [apiUrl, applyFarmProfile, globalUser]);
+  }, [apiUrl, applyFarmProfile, globalToken, globalUser]);
 
   const saveFarmProfile = async () => {
     setProfileNotice("");
@@ -602,7 +605,15 @@ export default function DashboardPage() {
     }
     setProfileSaving(true);
     try {
-      const response = await fetch(`${apiUrl}/api/v1/farm-profile`, { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(profile) });
+      const response = await fetch(`${apiUrl}/api/v1/farm-profile`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(globalToken ? { Authorization: `Bearer ${globalToken}` } : {}),
+        },
+        credentials: "include",
+        body: JSON.stringify(profile),
+      });
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(data?.detail || "Could not save the farm profile.");
       setSavedFarmProfile(data); applyFarmProfile(data); setProfileEditing(false); setProfileNotice("Farm profile saved securely to your account.");
@@ -616,7 +627,10 @@ export default function DashboardPage() {
   const fetchAssessments = useCallback(async () => {
     if (!apiUrl) return;
     try {
-      const res = await fetch(`${apiUrl}/api/v1/assessments`, { credentials: "include" });
+      const res = await fetch(`${apiUrl}/api/v1/assessments`, {
+        headers: globalToken ? { Authorization: `Bearer ${globalToken}` } : {},
+        credentials: "include",
+      });
       if (res.ok) {
         const data: Assessment[] = await res.json();
         setSavedAssessments(data);
@@ -644,7 +658,7 @@ export default function DashboardPage() {
     } catch {
       // offline or server starting
     }
-  }, [apiUrl]);
+  }, [apiUrl, globalToken]);
 
   // Uploaded Files State
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFileItem[]>([]);
@@ -655,7 +669,10 @@ export default function DashboardPage() {
   const fetchUploads = useCallback(async () => {
     if (!apiUrl) return;
     try {
-      const res = await fetch(`${apiUrl}/api/v1/uploads`, { credentials: "include" });
+      const res = await fetch(`${apiUrl}/api/v1/uploads`, {
+        headers: globalToken ? { Authorization: `Bearer ${globalToken}` } : {},
+        credentials: "include",
+      });
       if (res.ok) {
         const data: UploadedFileItem[] = await res.json();
         setUploadedFiles(data);
@@ -663,7 +680,7 @@ export default function DashboardPage() {
     } catch {
       // ignore
     }
-  }, [apiUrl]);
+  }, [apiUrl, globalToken]);
 
   async function handleFileUpload(
     category: "soil_report" | "field_photo" | "crop_photo",
@@ -676,6 +693,7 @@ export default function DashboardPage() {
       formData.append("file", file);
       const res = await fetch(`${apiUrl}/api/v1/uploads/${category}`, {
         method: "POST",
+        headers: globalToken ? { Authorization: `Bearer ${globalToken}` } : {},
         body: formData,
         credentials: "include",
       });
@@ -702,6 +720,7 @@ export default function DashboardPage() {
     try {
       const res = await fetch(`${apiUrl}/api/v1/uploads/${fileId}`, {
         method: "DELETE",
+        headers: globalToken ? { Authorization: `Bearer ${globalToken}` } : {},
         credentials: "include",
       });
       if (res.ok) {
@@ -745,7 +764,10 @@ export default function DashboardPage() {
     try {
       const res = await fetch(`${apiUrl}/api/v1/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(globalToken ? { Authorization: `Bearer ${globalToken}` } : {}),
+        },
         credentials: "include",
         body: JSON.stringify({
           message: text,
@@ -1341,6 +1363,9 @@ export default function DashboardPage() {
         throw new Error(err?.detail || `HTTP ${res.status}`);
       }
       const data = await res.json();
+      if (handleAuthSuccess) {
+        handleAuthSuccess(data, false);
+      }
       setAuthToken(data.token);
       setAuthUser({
         user_id: data.user_id,
@@ -1692,7 +1717,10 @@ export default function DashboardPage() {
     try {
       const response = await fetch(`${apiUrl}/api/v1/assessments`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(globalToken ? { Authorization: `Bearer ${globalToken}` } : {}),
+        },
         body: JSON.stringify(payload),
         credentials: "include",
       });

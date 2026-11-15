@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react";
 
 export interface User {
   user_id: string;
@@ -21,6 +21,46 @@ export interface SendOtpResult {
   dev_otp?: string | null;
 }
 
+export const TOKEN_STORAGE_KEY = "kshetraiq_session_token";
+export const USER_STORAGE_KEY = "kshetraiq_session_user";
+
+export function getStoredToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem(TOKEN_STORAGE_KEY) || sessionStorage.getItem(TOKEN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredSession(token: string, user: User, rememberMe: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+    sessionStorage.removeItem(USER_STORAGE_KEY);
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    localStorage.removeItem(USER_STORAGE_KEY);
+
+    const storage = rememberMe ? localStorage : sessionStorage;
+    storage.setItem(TOKEN_STORAGE_KEY, token);
+    storage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+  } catch {
+    // Gracefully handle private browsing or storage quota restrictions
+  }
+}
+
+export function clearStoredSession(): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+    sessionStorage.removeItem(USER_STORAGE_KEY);
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    localStorage.removeItem(USER_STORAGE_KEY);
+  } catch {
+    // Ignore
+  }
+}
+
 export function getApiBaseUrl(): string {
   if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
   if (typeof window !== "undefined" && window.location) {
@@ -39,47 +79,93 @@ interface AuthContextType {
   verifyOtp: (phoneNumber: string, otp: string, fullName?: string) => Promise<User>;
   getGoogleAuthUrl: (redirectUri?: string) => Promise<{ configured: boolean; url: string; message?: string }>;
   logout: () => Promise<void>;
-  refreshUser: () => Promise<User | null>;
+  refreshUser: (tokenOverride?: string) => Promise<User | null>;
+  handleAuthSuccess: (data: { token?: string; user?: User; [key: string]: any }, rememberMe?: boolean) => User;
+  getAuthHeaders: (extra?: HeadersInit) => HeadersInit;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  // Authentication is transported exclusively in the HttpOnly session cookie.
-  // Do not mirror bearer credentials into Web Storage where injected scripts can read them.
-  const [token] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const apiUrl = getApiBaseUrl();
 
-  const getAuthHeaders = (): HeadersInit => ({ "Content-Type": "application/json" });
+  const getAuthHeaders = useCallback((extra?: HeadersInit): HeadersInit => {
+    const currentToken = token || getStoredToken();
+    return {
+      "Content-Type": "application/json",
+      ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}),
+      ...extra,
+    };
+  }, [token]);
 
-  const refreshUser = async (): Promise<User | null> => {
+  const handleAuthSuccess = useCallback((data: { token?: string; user?: User; [key: string]: any }, rememberMe = false): User => {
+    const incomingUser: User = data.user || {
+      user_id: data.user_id || "",
+      email: data.email || "",
+      full_name: data.display_name || data.full_name || "",
+      created_at: data.created_at || new Date().toISOString(),
+      auth_provider: data.auth_provider || "email",
+      avatar_url: data.avatar_url || null,
+      phone_number: data.phone_number || null,
+    };
+    const incomingToken = data.token || "";
+
+    setUser(incomingUser);
+    if (incomingToken) {
+      setToken(incomingToken);
+      setStoredSession(incomingToken, incomingUser, rememberMe || !!data.remember_me);
+    }
+    setLoading(false);
+    return incomingUser;
+  }, []);
+
+  const refreshUser = useCallback(async (tokenOverride?: string): Promise<User | null> => {
+    const effectiveToken = tokenOverride || token || getStoredToken();
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (effectiveToken) {
+        headers["Authorization"] = `Bearer ${effectiveToken}`;
+      }
       const res = await fetch(`${apiUrl}/api/v1/auth/me`, {
         method: "GET",
-        headers: getAuthHeaders(),
+        headers,
         credentials: "include",
       });
       if (res.ok) {
         const data: User = await res.json();
         setUser(data);
+        if (effectiveToken) {
+          setToken(effectiveToken);
+        }
         return data;
       }
+      // If 401/error and we had an invalid session, reset client state
+      clearStoredSession();
       setUser(null);
+      setToken(null);
       return null;
     } catch {
+      // Network or offline: clean state
+      clearStoredSession();
       setUser(null);
+      setToken(null);
       return null;
     } finally {
       setLoading(false);
     }
-  };
+  }, [apiUrl, token]);
 
   useEffect(() => {
-    refreshUser();
-  }, []);
+    const storedToken = getStoredToken();
+    if (storedToken) {
+      setToken(storedToken);
+    }
+    refreshUser(storedToken || undefined);
+  }, [refreshUser]);
 
   const login = async (email: string, password: string, rememberMe = false): Promise<User> => {
     const res = await fetch(`${apiUrl}/api/v1/auth/login`, {
@@ -95,8 +181,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const data = await res.json();
-    setUser(data.user);
-    return data.user;
+    return handleAuthSuccess(data, rememberMe);
   };
 
   const register = async (
@@ -125,8 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const data = await res.json();
-    setUser(data.user);
-    return data.user;
+    return handleAuthSuccess(data, rememberMe);
   };
 
   const sendOtp = async (phoneNumber: string): Promise<SendOtpResult> => {
@@ -162,8 +246,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const data = await res.json();
-    setUser(data.user);
-    return data.user;
+    return handleAuthSuccess(data, false);
   };
 
   const getGoogleAuthUrl = async (redirectUri?: string): Promise<{ configured: boolean; url: string; message?: string }> => {
@@ -181,15 +264,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async (): Promise<void> => {
+    const effectiveToken = token || getStoredToken();
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (effectiveToken) {
+        headers["Authorization"] = `Bearer ${effectiveToken}`;
+      }
       await fetch(`${apiUrl}/api/v1/auth/logout`, {
         method: "POST",
-        headers: getAuthHeaders(),
+        headers,
         credentials: "include",
       });
     } catch {
       // Ignore network errors on logout
     } finally {
+      clearStoredSession();
+      setToken(null);
       setUser(null);
     }
   };
@@ -207,6 +297,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         getGoogleAuthUrl,
         logout,
         refreshUser,
+        handleAuthSuccess,
+        getAuthHeaders,
       }}
     >
       {children}
@@ -236,6 +328,10 @@ export function useAuth() {
       getGoogleAuthUrl: async (): Promise<{ configured: boolean; url: string; message?: string }> => ({ configured: false, url: "" }),
       logout: async () => {},
       refreshUser: async () => null,
+      handleAuthSuccess: () => {
+        throw new Error("AuthProvider not mounted");
+      },
+      getAuthHeaders: () => ({ "Content-Type": "application/json" }),
     };
   }
   return context;

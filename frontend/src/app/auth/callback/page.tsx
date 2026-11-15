@@ -9,7 +9,7 @@ import { LeafIcon, AlertCircleIcon } from "../../components/Icons";
 function GoogleAuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { refreshUser } = useAuth();
+  const { refreshUser, handleAuthSuccess } = useAuth();
 
   const code = searchParams.get("code");
   const state = searchParams.get("state");
@@ -53,9 +53,20 @@ function GoogleAuthCallbackContent() {
           throw new Error(errData?.detail || `Authentication failed with status ${res.status}`);
         }
 
-        await res.json();
+        const authData = await res.json();
+        if (!authData || (!authData.user && !authData.token)) {
+          throw new Error("Invalid authentication response received from server.");
+        }
 
-        await refreshUser();
+        // Establish session in state and storage
+        handleAuthSuccess(authData, !!authData.remember_me);
+
+        // Verify session live with backend
+        const verifiedUser = await refreshUser(authData.token);
+        if (!verifiedUser && !authData.user) {
+          throw new Error("Failed to verify user session with backend.");
+        }
+
         setStatus("success");
         const savedRedirect = typeof window !== "undefined" ? sessionStorage.getItem("kshetraiq_post_auth_redirect") : null;
         if (typeof window !== "undefined") sessionStorage.removeItem("kshetraiq_post_auth_redirect");
@@ -70,7 +81,7 @@ function GoogleAuthCallbackContent() {
     };
 
     exchangeCode();
-  }, [code, state, oauthError, oauthErrorDesc, refreshUser, router]);
+  }, [code, state, oauthError, oauthErrorDesc, refreshUser, handleAuthSuccess, router]);
 
   return (
     <div

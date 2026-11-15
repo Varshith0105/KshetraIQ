@@ -312,19 +312,33 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # ──────────── Authentication Endpoints ────────────
 
+    def _apply_session_cookie(resp: Response, token: str, remember_me: bool = False) -> None:
+        is_prod = (settings.environment == "production")
+        cookie_max_age = (settings.persistent_session_days * 86400) if remember_me else (settings.session_expiry_hours * 3600)
+        resp.set_cookie(
+            key="kshetraiq_session",
+            value=token,
+            httponly=True,
+            samesite="none" if is_prod else "lax",
+            secure=is_prod,
+            path="/",
+            max_age=cookie_max_age,
+        )
+
+    def _clear_session_cookie(resp: Response) -> None:
+        is_prod = (settings.environment == "production")
+        resp.delete_cookie(
+            key="kshetraiq_session",
+            path="/",
+            samesite="none" if is_prod else "lax",
+            secure=is_prod,
+        )
+
     @app.post("/api/v1/auth/register", response_model=AuthTokenResponse, status_code=201)
     def register_user(payload: UserRegisterRequest, response: Response) -> AuthTokenResponse:
         try:
             token_resp = auth_service.register(payload)
-            cookie_max_age = (settings.persistent_session_days * 86400) if token_resp.remember_me else None
-            response.set_cookie(
-                key="kshetraiq_session",
-                value=token_resp.token,
-                httponly=True,
-                samesite="lax",
-                secure=(settings.environment == "production"),
-                max_age=cookie_max_age,
-            )
+            _apply_session_cookie(response, token_resp.token, token_resp.remember_me)
             return token_resp
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
@@ -336,15 +350,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def login_user(payload: UserLoginRequest, response: Response) -> AuthTokenResponse:
         try:
             token_resp = auth_service.login(payload)
-            cookie_max_age = (settings.persistent_session_days * 86400) if token_resp.remember_me else None
-            response.set_cookie(
-                key="kshetraiq_session",
-                value=token_resp.token,
-                httponly=True,
-                samesite="lax",
-                secure=(settings.environment == "production"),
-                max_age=cookie_max_age,
-            )
+            _apply_session_cookie(response, token_resp.token, token_resp.remember_me)
             return token_resp
         except ValueError as e:
             raise HTTPException(status_code=401, detail=str(e))
@@ -416,11 +422,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if token:
             auth_service.logout(token)
 
-        response.delete_cookie(
-            key="kshetraiq_session",
-            samesite="lax",
-            secure=(settings.environment == "production"),
-        )
+        _clear_session_cookie(response)
         return {"status": "logged_out"}
 
     @app.post("/api/v1/auth/password-reset/request", response_model=PasswordResetRequestResponse)
@@ -457,15 +459,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def verify_phone_otp(payload: PhoneOtpVerifyRequest, response: Response) -> AuthTokenResponse:
         try:
             token_resp = auth_service.verify_phone_otp(payload)
-            cookie_max_age = (settings.persistent_session_days * 86400) if token_resp.remember_me else None
-            response.set_cookie(
-                key="kshetraiq_session",
-                value=token_resp.token,
-                httponly=True,
-                samesite="lax",
-                secure=(settings.environment == "production"),
-                max_age=cookie_max_age,
-            )
+            _apply_session_cookie(response, token_resp.token, token_resp.remember_me)
             return token_resp
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
@@ -486,15 +480,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 state=payload.state,
                 remember_me=payload.remember_me,
             )
-            cookie_max_age = (settings.persistent_session_days * 86400) if token_resp.remember_me else None
-            response.set_cookie(
-                key="kshetraiq_session",
-                value=token_resp.token,
-                httponly=True,
-                samesite="lax",
-                secure=(settings.environment == "production"),
-                max_age=cookie_max_age,
-            )
+            _apply_session_cookie(response, token_resp.token, token_resp.remember_me)
             return token_resp
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))

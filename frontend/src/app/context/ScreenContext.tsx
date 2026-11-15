@@ -153,9 +153,17 @@ export function ScreenContextProvider({ children }: { children: ReactNode }) {
           ? `${window.location.protocol}//${window.location.hostname}:8000`
           : "http://localhost:8000");
 
+      const token =
+        typeof window !== "undefined"
+          ? localStorage.getItem("kshetraiq_session_token") || sessionStorage.getItem("kshetraiq_session_token")
+          : null;
+
       await fetch(`${baseUrl}/api/v1/user/activities`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         credentials: "include",
         body: JSON.stringify({
           ...activity,
