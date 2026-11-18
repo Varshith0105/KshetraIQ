@@ -1,0 +1,450 @@
+Notebook: capstone-final/main_file_capstone(1).ipynb
+============================================================
+
+--- CELL 0 (code) ---
+import os
+import json
+
+os.environ['KAGGLE_USERNAME'] = "chandramoulibandaru"
+os.environ['KAGGLE_KEY'] = "KGAT_4eed677cb21afe63d661c7c029b2a68a"
+
+os.makedirs('/root/.kaggle', exist_ok=True)
+with open('/root/.kaggle/kaggle.json', 'w') as f:
+    json.dump({"username": "chandramoulibandaru", "key": "KGAT_4eed677cb21afe63d661c7c029b2a68a"}, f)
+
+os.chmod('/root/.kaggle/kaggle.json', 0o600)
+
+
+
+--- CELL 1 (code) ---
+!kaggle datasets download karagwaanntreasure/plant-disease-detection
+
+--- CELL 2 (code) ---
+import zipfile
+zip=zipfile.ZipFile('/content/plant-disease-detection.zip','r')
+zip.extractall()
+zip.close()
+
+--- CELL 3 (code) ---
+import pandas as pd
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras import layers, models
+from tensorflow.keras.layers import Dense,Flatten,Dropout,BatchNormalization
+from tensorflow.keras.applications import InceptionResNetV2
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from sklearn.metrics import confusion_matrix
+from sklearn.model_selection import train_test_split
+import cv2
+import keras
+import tensorflow
+
+--- CELL 4 (code) ---
+
+import tensorflow as tf
+from tensorflow.keras import layers
+from tensorflow.keras.applications import DenseNet121,ResNet50
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau,ModelCheckpoint
+from sklearn.metrics import confusion_matrix
+import numpy as np
+
+
+--- CELL 5 (code) ---
+
+train_data=keras.utils.image_dataset_from_directory(
+    directory='/content/Dataset',
+    labels='inferred',
+    label_mode='int',
+    batch_size=32,
+    image_size=(160,160),
+    subset='training',
+    validation_split=0.2,
+    seed=123,
+    shuffle=True
+)
+validation_data=keras.utils.image_dataset_from_directory(
+    directory='/content/Dataset',
+    labels='inferred',
+    label_mode='int',
+    batch_size=32,
+    image_size=(160,160),
+    subset='validation',
+    validation_split=0.2,
+    seed=123,
+    shuffle=True
+)
+
+--- CELL 6 (code) ---
+net=ResNet50(
+    include_top=False,
+    weights='imagenet',
+    input_shape=(160,160,3)
+)
+
+--- CELL 7 (code) ---
+net.trainable=False
+
+--- CELL 8 (code) ---
+net.summary()
+
+--- CELL 9 (code) ---
+model=models.Sequential([
+    net,
+    layers.GlobalAveragePooling2D(),
+    Dense(128,activation='relu'),
+    Dense(23,activation='softmax')
+])
+
+--- CELL 10 (code) ---
+
+
+model.compile(
+    optimizer='adam',
+    loss='sparse_categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+
+
+
+--- CELL 11 (code) ---
+earlystopping=EarlyStopping(
+    monitor='val_loss',
+    patience=10,
+    verbose=1,
+    restore_best_weights=True
+
+
+)
+modelcheck=ModelCheckpoint(
+    'plant_disease.h5',
+    monitor='val_accuracy',
+    verbose=1,
+    save_best_only=True
+
+)
+
+--- CELL 12 (code) ---
+red=ReduceLROnPlateau(
+    monitor='val_loss',
+    factor=0.2,
+    patience=5,
+    verbose=1,
+    min_lr=0.00001
+)
+
+--- CELL 13 (code) ---
+model.fit(train_data,validation_data=validation_data,epochs=20,callbacks=[earlystopping,modelcheck,red])
+
+--- CELL 14 (code) ---
+model.predict(validation_data)
+
+--- CELL 15 (code) ---
+loss,accuracy=model.evaluate(validation_data)
+
+--- CELL 16 (code) ---
+print(loss,accuracy)
+
+--- CELL 17 (code) ---
+import matplotlib.pyplot as plt
+plt.plot(model.history.history['accuracy'],label='training')
+plt.plot(model.history.history['val_accuracy'],label='validation')
+plt.legend()
+plt.show()
+
+--- CELL 18 (code) ---
+
+plt.plot(model.history.history['loss'],label='training')
+plt.plot(model.history.history['val_loss'],label='validation')
+plt.legend()
+plt.show()
+
+--- CELL 19 (code) ---
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import confusion_matrix
+
+class_names = train_data.class_names
+
+y_true = np.concatenate([y.numpy() for x, y in validation_data])
+y_pred_prob = model.predict(validation_data)
+y_pred = np.argmax(y_pred_prob, axis=1)
+
+cm = confusion_matrix(y_true, y_pred)
+
+plt.figure(figsize=(16, 14))
+
+sns.heatmap(
+    cm,
+    annot=True,
+    fmt="d",
+    cmap="Blues",
+    xticklabels=class_names,
+    yticklabels=class_names
+)
+
+plt.xlabel("Predicted Class")
+plt.ylabel("Actual Class")
+plt.title("Confusion Matrix Heatmap - ResNet50")
+plt.xticks(rotation=90)
+plt.yticks(rotation=0)
+
+plt.tight_layout()
+
+plt.savefig(
+    "resnet50_confusion_matrix.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.show()
+
+--- CELL 20 (code) ---
+cm_normalized = cm.astype("float") / cm.sum(axis=1, keepdims=True)
+
+plt.figure(figsize=(16, 14))
+
+sns.heatmap(
+    cm_normalized,
+    annot=True,
+    fmt=".2f",
+    cmap="Blues",
+    xticklabels=class_names,
+    yticklabels=class_names
+)
+
+plt.xlabel("Predicted Class")
+plt.ylabel("Actual Class")
+plt.title("Normalized Confusion Matrix - ResNet50")
+
+plt.xticks(rotation=90)
+plt.yticks(rotation=0)
+
+plt.tight_layout()
+
+plt.savefig(
+    "resnet50_normalized_confusion_matrix.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.show()
+
+--- CELL 21 (code) ---
+!pip install lime -q
+
+--- CELL 22 (code) ---
+from lime import lime_image
+from skimage.segmentation import mark_boundaries
+import matplotlib.pyplot as plt
+import numpy as np
+
+--- CELL 23 (code) ---
+explainer = lime_image.LimeImageExplainer()
+
+--- CELL 24 (code) ---
+images, labels = next(iter(validation_data))
+
+image = images[0].numpy().astype(np.uint8)
+true_label = labels[0].numpy()
+
+print("True class:", class_names[true_label])
+
+--- CELL 25 (code) ---
+explanation = explainer.explain_instance(
+    image,
+    classifier_fn=lambda x: model.predict(np.array(x), verbose=0),
+    top_labels=5,
+    hide_color=0,
+    num_samples=1000
+)
+
+--- CELL 26 (code) ---
+predicted_label = np.argmax(
+    model.predict(np.expand_dims(image, axis=0), verbose=0)
+)
+
+temp, mask = explanation.get_image_and_mask(
+    predicted_label,
+    positive_only=False,
+    num_features=10,
+    hide_rest=False
+)
+
+plt.figure(figsize=(8, 8))
+
+plt.imshow(
+    mark_boundaries(
+        temp / 255.0,
+        mask
+    )
+)
+
+plt.title(
+    f"LIME Explanation\n"
+    f"True: {class_names[true_label]}\n"
+    f"Predicted: {class_names[predicted_label]}"
+)
+
+plt.axis("off")
+plt.tight_layout()
+
+plt.savefig(
+    "lime_explanation.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.show()
+
+--- CELL 27 (code) ---
+!pip install -q -U transformers accelerate
+
+--- CELL 28 (code) ---
+import torch
+import numpy as np
+import matplotlib.pyplot as plt
+from PIL import Image
+from transformers import pipeline
+
+--- CELL 29 (code) ---
+device = 0 if torch.cuda.is_available() else -1
+
+sam2 = pipeline(
+    "mask-generation",
+    model="facebook/sam2.1-hiera-small",
+    device=device
+)
+
+--- CELL 30 (code) ---
+images, labels = next(iter(validation_data))
+
+sample_image = images[0].numpy().astype(np.uint8)
+
+true_class = class_names[labels[0].numpy()]
+
+print("True class:", true_class)
+
+--- CELL 31 (code) ---
+sample_pil = Image.fromarray(sample_image)
+
+--- CELL 32 (code) ---
+sam_output = sam2(
+    sample_pil,
+    points_per_batch=16
+)
+
+print("Number of masks generated:", len(sam_output["masks"]))
+
+--- CELL 33 (code) ---
+masks = sam_output["masks"]
+
+plt.figure(figsize=(12, 5))
+
+plt.subplot(1, 2, 1)
+plt.imshow(sample_image)
+plt.title(f"Original Image\n{true_class}")
+plt.axis("off")
+
+plt.subplot(1, 2, 2)
+
+plt.imshow(sample_image)
+
+# Display the largest mask
+mask = masks[0]
+
+plt.imshow(
+    mask,
+    alpha=0.5
+)
+
+plt.title("SAM 2 Segmentation")
+plt.axis("off")
+
+plt.tight_layout()
+
+plt.savefig(
+    "sam2_segmentation.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.show()
+
+--- CELL 34 (code) ---
+from transformers import AutoProcessor, Florence2ForConditionalGeneration
+
+florence_processor = AutoProcessor.from_pretrained(
+    "florence-community/Florence-2-base"
+)
+
+florence_model = Florence2ForConditionalGeneration.from_pretrained(
+    "florence-community/Florence-2-base",
+    torch_dtype=torch.float16,
+    device_map="auto"
+)
+
+--- CELL 35 (code) ---
+task_prompt = "<CAPTION>"
+
+inputs = florence_processor(
+    text=task_prompt,
+    images=sample_pil,
+    return_tensors="pt"
+)
+
+inputs = {
+    k: v.to(florence_model.device)
+    for k, v in inputs.items()
+}
+
+with torch.no_grad():
+    generated_ids = florence_model.generate(
+        **inputs,
+        max_new_tokens=100,
+        num_beams=3
+    )
+
+generated_text = florence_processor.batch_decode(
+    generated_ids,
+    skip_special_tokens=True
+)[0]
+
+print("Florence-2 Description:")
+print(generated_text)
+
+--- CELL 36 (code) ---
+task_prompt = "<MORE_DETAILED_CAPTION>"
+
+inputs = florence_processor(
+    text=task_prompt,
+    images=sample_pil,
+    return_tensors="pt"
+)
+
+inputs = {
+    k: v.to(florence_model.device)
+    for k, v in inputs.items()
+}
+
+with torch.no_grad():
+    generated_ids = florence_model.generate(
+        **inputs,
+        max_new_tokens=150,
+        num_beams=3
+    )
+
+description = florence_processor.batch_decode(
+    generated_ids,
+    skip_special_tokens=True
+)[0]
+
+print("Image Understanding:")
+print(description)
+
+--- CELL 37 (code) ---
+
+

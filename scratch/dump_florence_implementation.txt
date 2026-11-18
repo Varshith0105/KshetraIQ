@@ -1,0 +1,349 @@
+Notebook: capstone-final/florence_implementation (1).ipynb
+============================================================
+
+--- CELL 0 (code) ---
+!pip install -q "transformers==4.49.0" "tokenizers<0.22" accelerate
+
+--- CELL 1 (code) ---
+!pip install -q "transformers==4.49.0" "tokenizers<0.22" accelerate
+
+--- CELL 2 (code) ---
+!pip install -q transformers
+
+--- CELL 3 (code) ---
+import torch
+from PIL import Image
+from transformers import BlipProcessor, BlipForConditionalGeneration
+
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
+blip_processor = BlipProcessor.from_pretrained(
+    "Salesforce/blip-image-captioning-base"
+)
+
+blip_model = BlipForConditionalGeneration.from_pretrained(
+    "Salesforce/blip-image-captioning-base"
+).to(device)
+
+print("BLIP loaded successfully!")
+
+--- CELL 4 (code) ---
+import os
+import json
+
+os.environ['KAGGLE_USERNAME'] = "chandramoulibandaru"
+os.environ['KAGGLE_KEY'] = "KGAT_4eed677cb21afe63d661c7c029b2a68a"
+
+os.makedirs('/root/.kaggle', exist_ok=True)
+with open('/root/.kaggle/kaggle.json', 'w') as f:
+    json.dump({"username": "chandramoulibandaru", "key": "KGAT_4eed677cb21afe63d661c7c029b2a68a"}, f)
+
+os.chmod('/root/.kaggle/kaggle.json', 0o600)
+
+
+
+
+
+--- CELL 5 (code) ---
+!kaggle datasets download karagwaanntreasure/plant-disease-detection
+
+
+--- CELL 6 (code) ---
+import zipfile
+zip=zipfile.ZipFile('/content/plant-disease-detection.zip','r')
+zip.extractall()
+zip.close()
+
+--- CELL 7 (code) ---
+import pandas as pd
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras import layers, models
+from tensorflow.keras.layers import Dense,Flatten,Dropout,BatchNormalization
+from tensorflow.keras.applications import InceptionResNetV2
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from sklearn.metrics import confusion_matrix
+from sklearn.model_selection import train_test_split
+import cv2
+import keras
+import tensorflow
+
+--- CELL 8 (code) ---
+
+import tensorflow as tf
+from tensorflow.keras import layers
+from tensorflow.keras.applications import DenseNet121,ResNet50
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau,ModelCheckpoint
+from sklearn.metrics import confusion_matrix
+import numpy as np
+
+
+--- CELL 9 (code) ---
+
+train_data=keras.utils.image_dataset_from_directory(
+    directory='/content/Dataset',
+    labels='inferred',
+    label_mode='int',
+    batch_size=32,
+    image_size=(160,160),
+    subset='training',
+    validation_split=0.2,
+    seed=123,
+    shuffle=True
+)
+validation_data=keras.utils.image_dataset_from_directory(
+    directory='/content/Dataset',
+    labels='inferred',
+    label_mode='int',
+    batch_size=32,
+    image_size=(160,160),
+    subset='validation',
+    validation_split=0.2,
+    seed=123,
+    shuffle=True
+)
+
+--- CELL 10 (code) ---
+!pip install -q transformers
+
+--- CELL 11 (code) ---
+import torch
+from PIL import Image
+from transformers import BlipProcessor, BlipForConditionalGeneration
+
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
+blip_processor = BlipProcessor.from_pretrained(
+    "Salesforce/blip-image-captioning-base"
+)
+
+blip_model = BlipForConditionalGeneration.from_pretrained(
+    "Salesforce/blip-image-captioning-base"
+).to(device)
+
+print("BLIP loaded successfully!")
+
+--- CELL 12 (code) ---
+images, labels = next(iter(validation_data))
+
+sample_image = images[0].numpy().astype("uint8")
+sample_pil = Image.fromarray(sample_image).convert("RGB")
+
+class_names = train_data.class_names
+true_class = class_names[labels[0].numpy()]
+
+print("Actual class:", true_class)
+
+--- CELL 13 (code) ---
+inputs = blip_processor(
+    images=sample_pil,
+    return_tensors="pt"
+).to(device)
+
+with torch.no_grad():
+    output = blip_model.generate(
+        **inputs,
+        max_new_tokens=50
+    )
+
+caption = blip_processor.decode(
+    output[0],
+    skip_special_tokens=True
+)
+
+print("Image Understanding:")
+print(caption)
+
+--- CELL 14 (code) ---
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(6, 6))
+plt.imshow(sample_pil)
+plt.axis("off")
+plt.title(f"Actual Class: {true_class}\nBLIP: {caption}")
+plt.show()
+
+--- CELL 15 (code) ---
+!pip install -q lime
+!pip install -q segment-anything
+
+import numpy as np
+import matplotlib.pyplot as plt
+from PIL import Image
+from lime import lime_image
+from skimage.segmentation import mark_boundaries
+from tensorflow.keras.applications import ResNet50
+from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
+from tensorflow.keras.models import Model
+from tensorflow.keras.applications.resnet50 import preprocess_input
+
+import os
+from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
+
+sam_checkpoint_path = "/content/sam_vit_b_01ec64.pth"
+if not os.path.exists(sam_checkpoint_path):
+    print("Downloading SAM B checkpoint...")
+    !wget -q https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth -O {sam_checkpoint_path}
+    print("SAM B checkpoint downloaded.")
+
+model_type = "vit_b"
+sam_model_instance = sam_model_registry[model_type](checkpoint=sam_checkpoint_path)
+sam_model_instance.to(device=device)
+mask_generator = SamAutomaticMaskGenerator(sam_model_instance)
+
+def sam2(image_pil, points_per_batch=None):
+    image_np = np.array(image_pil)
+    sam_masks_raw = mask_generator.generate(image_np)
+
+    if sam_masks_raw:
+        combined_mask = np.zeros(image_np.shape[:2], dtype=bool)
+        for mask_data in sam_masks_raw:
+            combined_mask = np.logical_or(combined_mask, mask_data['segmentation'])
+        return {"masks": [combined_mask.astype(float)]}
+    else:
+        return {"masks": [np.zeros(image_np.shape[:2], dtype=float)]}
+
+images, labels = next(iter(validation_data))
+
+sample_image = images[0].numpy().astype(np.uint8)
+sample_pil = Image.fromarray(sample_image).convert("RGB")
+
+true_class = class_names[labels[0].numpy()]
+
+num_classes = len(class_names)
+
+base_model = ResNet50(
+    weights='imagenet',
+    include_top=False,
+    input_shape=(160, 160, 3)
+)
+
+x = base_model.output
+x = GlobalAveragePooling2D()(x)
+x = Dense(1024, activation='relu')(x)
+predictions = Dense(num_classes, activation='softmax')(x)
+
+model = Model(inputs=base_model.input, outputs=predictions)
+
+preprocessed_sample_image = preprocess_input(sample_image)
+
+prediction = model.predict(
+    np.expand_dims(preprocessed_sample_image, axis=0),
+    verbose=0
+)
+
+predicted_class = class_names[np.argmax(prediction)]
+confidence = np.max(prediction) * 100
+
+print("Actual:", true_class)
+print("Predicted:", predicted_class)
+print(f"Confidence: {confidence:.2f}%")
+
+sam_output = sam2(sample_pil, points_per_batch=16)
+
+sam_mask = sam_output["masks"][0]
+
+
+blip_inputs = blip_processor(
+    images=sample_pil,
+    return_tensors="pt"
+).to(device)
+
+with torch.no_grad():
+    blip_output = blip_model.generate(
+        **blip_inputs,
+        max_new_tokens=50
+    )
+
+caption = blip_processor.decode(
+    blip_output[0],
+    skip_special_tokens=True
+)
+
+explainer = lime_image.LimeImageExplainer()
+
+def predict_fn(images):
+    images = np.array(images)
+    images = preprocess_input(images)
+    return model.predict(images, verbose=0)
+
+explanation = explainer.explain_instance(
+    sample_image,
+    predict_fn,
+    top_labels=5,
+    hide_color=0,
+    num_samples=500
+)
+
+top_class = np.argmax(prediction)
+
+lime_image_result, lime_mask = explanation.get_image_and_mask(
+    top_class,
+    positive_only=False,
+    num_features=10,
+    hide_rest=False
+)
+
+lime_visual = mark_boundaries(
+    lime_image_result / 255.0,
+    lime_mask
+)
+
+fig, axes = plt.subplots(2, 2, figsize=(14, 12))
+
+axes[0, 0].imshow(sample_pil)
+axes[0, 0].set_title(
+    f"Original Image\nActual: {true_class}",
+    fontsize=12
+)
+axes[0, 0].axis("off")
+
+axes[0, 1].imshow(sample_pil)
+axes[0, 1].imshow(
+    sam_mask,
+    alpha=0.45,
+    cmap="jet"
+)
+axes[0, 1].set_title(
+    "SAM2 Segmentation",
+    fontsize=12
+)
+axes[0, 1].axis("off")
+
+axes[1, 0].imshow(sample_pil)
+axes[1, 0].set_title(
+    f"BLIP Image Understanding\n{caption}",
+    fontsize=11,
+    wrap=True
+)
+axes[1, 0].axis("off")
+
+axes[1, 1].imshow(lime_visual)
+axes[1, 1].set_title(
+    f"LIME Explanation\n"
+    f"Predicted: {predicted_class} ({confidence:.2f}%)",
+    fontsize=12
+)
+axes[1, 1].axis("off")
+
+plt.suptitle(
+    "Integrated Plant Disease Analysis Using ResNet50, SAM2, BLIP and LIME",
+    fontsize=16,
+    fontweight="bold"
+)
+
+plt.tight_layout()
+
+plt.savefig(
+    "integrated_plant_disease_results.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.show()
+
+--- CELL 16 (code) ---
+
+

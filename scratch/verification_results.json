@@ -1,0 +1,170 @@
+{
+  "item1": {
+    "analysis_id": "plant_93485ab93531488db9e64b19c83ab1f8",
+    "input_sha256": "f960c342d01ef1d447633e2d6b175679e0890da3f97d9657d35bb2707f3dd3fd",
+    "stored_sha256": "f960c342d01ef1d447633e2d6b175679e0890da3f97d9657d35bb2707f3dd3fd",
+    "models_verified": [
+      "disease_classifier",
+      "sam",
+      "lime",
+      "blip",
+      "florence"
+    ],
+    "pipeline_time_sec": 204.52
+  },
+  "item2": {
+    "mask_count": 5,
+    "leaf_coverage_pct": 31.87,
+    "mask_calculated_pct": 31.87,
+    "assets_verified": [
+      "F:\\KshetraIQ\\.uploads\\intelligence\\plant_93485ab93531488db9e64b19c83ab1f8\\sam-mask.png",
+      "F:\\KshetraIQ\\.uploads\\intelligence\\plant_93485ab93531488db9e64b19c83ab1f8\\sam-overlay.png",
+      "F:\\KshetraIQ\\.uploads\\intelligence\\plant_93485ab93531488db9e64b19c83ab1f8\\sam-segmented.png"
+    ]
+  },
+  "item3": {
+    "blip_caption": "a leaf with a yellow line on it",
+    "florence_caption": "a close up of a green leaf with a black spot on it",
+    "florence_detailed": "The image is a close-up of a green leaf. The leaf appears to be fresh and healthy, with a glossy texture. On the left side of the leaf, there is a large, oval-shaped indentation in the center. The indentation is black and is slightly curved. The background is a light green color, making the leaf stand out. The image is taken from a slightly elevated angle, looking down on the leaf.",
+    "synthetic_image_root_cause": {
+      "file": ".uploads\\intelligence\\plant_25218beecdee4310958e5a5135cb00ce\\original.jpg",
+      "unique_colors": 1,
+      "explanation": "Previous test file was a 1412-byte synthetic solid-green RGB(50, 150, 51) rectangle. BLIP and Florence truthfully reported a green background. On the genuine leaf image, both models describe the leaf structure and foliar characteristics accurately."
+    }
+  },
+  "item4": {
+    "predicted_class": "Pepper__bell___Bacterial_spot",
+    "confidence_pct": 99.95,
+    "top_candidates": [
+      {
+        "class_name": "Pepper__bell___Bacterial_spot",
+        "label_te": "\u0c2c\u0c46\u0c32\u0c4d \u0c2a\u0c46\u0c2a\u0c4d\u0c2a\u0c30\u0c4d \u0c2c\u0c4d\u0c2f\u0c3e\u0c15\u0c4d\u0c1f\u0c40\u0c30\u0c3f\u0c2f\u0c32\u0c4d \u0c2e\u0c1a\u0c4d\u0c1a \u0c24\u0c46\u0c17\u0c41\u0c32\u0c41",
+        "confidence": 99.95,
+        "mitigation": "Spray Copper oxychloride (2.5 g/L) + Streptocycline (0.1 g/L)."
+      },
+      {
+        "class_name": "Pepper__bell___healthy",
+        "label_te": "\u0c06\u0c30\u0c4b\u0c17\u0c4d\u0c2f\u0c15\u0c30\u0c2e\u0c48\u0c28 \u0c2e\u0c3f\u0c30\u0c2a \u0c06\u0c15\u0c41",
+        "confidence": 0.04,
+        "mitigation": "Continue recommended irrigation and pest monitoring."
+      },
+      {
+        "class_name": "Tomato__Tomato_YellowLeaf__Curl_Virus",
+        "label_te": "\u0c1f\u0c2e\u0c4b\u0c1f\u0c3e \u0c06\u0c15\u0c41 \u0c2e\u0c41\u0c21\u0c41\u0c24 \u0c24\u0c46\u0c17\u0c41\u0c32\u0c41 (\u0c1c\u0c46\u0c2e\u0c3f\u0c28\u0c40 \u0c35\u0c48\u0c30\u0c38\u0c4d)",
+        "confidence": 0.01,
+        "mitigation": "Control whitefly vectors using Acetamiprid or Imidacloprid (0.3ml/L) and yellow sticky traps."
+      }
+    ],
+    "active_artifact": "plant_disease.h5 (93.4 MB)",
+    "classes_count": 23,
+    "classes_list": [
+      "Apple___Apple_scab",
+      "Apple___Black_rot",
+      "Apple___Cedar_apple_rust",
+      "Apple___healthy",
+      "Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot",
+      "Corn_(maize)___Common_rust_",
+      "Corn_(maize)___Northern_Leaf_Blight",
+      "Corn_(maize)___healthy",
+      "Pepper__bell___Bacterial_spot",
+      "Pepper__bell___healthy",
+      "Potato___Early_blight",
+      "Potato___Late_blight",
+      "Potato___healthy",
+      "Tomato_Bacterial_spot",
+      "Tomato_Early_blight",
+      "Tomato_Late_blight",
+      "Tomato_Leaf_Mold",
+      "Tomato_Septoria_leaf_spot",
+      "Tomato_Spider_mites_Two_spotted_spider_mite",
+      "Tomato__Target_Spot",
+      "Tomato__Tomato_YellowLeaf__Curl_Virus",
+      "Tomato__Tomato_mosaic_virus",
+      "Tomato_healthy"
+    ]
+  },
+  "item5": {
+    "assets_verified_count": 6,
+    "assets": [
+      {
+        "tag": "original",
+        "name": "original.jpg",
+        "bytes": 41918,
+        "dimensions": [
+          640,
+          650
+        ]
+      },
+      {
+        "tag": "sam",
+        "name": "sam-mask.png",
+        "bytes": 3577,
+        "dimensions": [
+          640,
+          650
+        ]
+      },
+      {
+        "tag": "sam",
+        "name": "sam-overlay.png",
+        "bytes": 803883,
+        "dimensions": [
+          1063,
+          1080
+        ]
+      },
+      {
+        "tag": "sam",
+        "name": "sam-segmented.png",
+        "bytes": 113429,
+        "dimensions": [
+          640,
+          650
+        ]
+      },
+      {
+        "tag": "lime",
+        "name": "lime-explanation.png",
+        "bytes": 1665522,
+        "dimensions": [
+          1465,
+          1578
+        ]
+      },
+      {
+        "tag": "composite_2x2",
+        "name": "integrated_plant_disease_results.png",
+        "bytes": 3361084,
+        "dimensions": [
+          2314,
+          2362
+        ]
+      }
+    ]
+  },
+  "item6": {
+    "pdf_path": "F:\\KshetraIQ\\.uploads\\intelligence\\plant_93485ab93531488db9e64b19c83ab1f8\\report.pdf",
+    "pdf_size_bytes": 12062857,
+    "generated_at": "2026-11-17T14:23:46.716405+00:00",
+    "pdf_verified": true
+  },
+  "item7": {
+    "Summary": "**Plant Disease Analysis Summary (ID: plant_93485ab93531488db9e64b19c83ab1f8):**\n\n\ud83c\udf3f **Diagnosis**: **Pepper__bell___Bacterial_spot** (100.0% confidence)\n\n\ud83d\udd2c **Model Statuses**:\n- **ResNet50**: COMPLETED\n- **SAM**: COMPLETED (5 masks)\n- **LIME**: COMPLETED (Explained: Pepper__bell___Bacterial_spot)\n- **BLIP**: COMPLETED (Caption: \"a leaf with a yellow line on it\")\n- **Florence-2**: COMPLETED\n",
+    "SAM": "**SAM (Segment Anything) Results:**\n- Identified **5 distinct structural leaf segments**.\n- Leaf tissue spans **31.87%** of the image frame.\n- Visual Output: The segmentation mask isolates the vegetative canopy, separating chlorotic/necrotic lesions from ambient noise.",
+    "LIME": "**LIME Explanation Results:**\n- Model Explaining: ResNet50 vision classifier.\n- Target Class Analyzed: **Pepper__bell___Bacterial_spot**.\n- Methodology: Evaluated superpixel perturbations with 150 local samples to compute positive and negative influence boundaries.\n- Interpretation: The highlighted yellow/green contours indicate the specific leaf tissue regions that triggered the disease classification.",
+    "Descriptions": "**Vision-Language Descriptions:**\n- **BLIP Caption**: \"a leaf with a yellow line on it\"\n- **Florence-2 Detailed Analysis**: \"The image is a close-up of a green leaf. The leaf appears to be fresh and healthy, with a glossy texture. On the left side of the leaf, there is a large, oval-shaped indentation in the center. The indentation is black and is slightly curved. The background is a light green color, making the leaf stand out. The image is taken from a slightly elevated angle, looking down on the leaf.\"\n"
+  },
+  "item8_9": {
+    "status_response": [
+      {
+        "model": "sentinel2_ndvi_evi",
+        "status": "REQUIRES_CREDENTIALS",
+        "is_live": false,
+        "data_source": "COPERNICUS/S2_SR_HARMONIZED",
+        "reason": "Google Earth Engine requires authentication (Please authorize access to your Earth Engine account by running\n\nearthengine authenticate\n\nin your command line, or ee.Authenticate() in Python, and then retry.). Run 'earthengine authenticate' or provide a Google Service Account key in .env."
+      }
+    ],
+    "truthful_is_live": false,
+    "reason": "Google Earth Engine requires authentication (Please authorize access to your Earth Engine account by running\n\nearthengine authenticate\n\nin your command line, or ee.Authenticate() in Python, and then retry.). Run 'earthengine authenticate' or provide a Google Service Account key in .env."
+  }
+}

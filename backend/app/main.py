@@ -1,4 +1,6 @@
 import os
+from datetime import date
+from pathlib import Path
 
 # Limit numerical library thread pools to prevent memory bloat in constrained (512MB) containers
 os.environ.setdefault("OMP_NUM_THREADS", "1")
@@ -10,7 +12,8 @@ os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 import logging
 from typing import Any
 
-from fastapi import Cookie, FastAPI, File, Header, HTTPException, Query, Request, Response, UploadFile
+from fastapi import Body, Cookie, FastAPI, File, Header, HTTPException, Query, Request, Response, UploadFile
+from fastapi.responses import FileResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -66,11 +69,13 @@ from app.services.auth_service import (
 from app.services.chat_service import ChatService
 from app.services.climate_recommender import ClimateScenarioService, get_climate_scenario_service
 from app.services.irrigation_service import irrigation_service
+from app.services.intelligence_service import IntelligenceService
 from app.services.market_price_service import market_price_service
 from app.services.plant_disease_service import plant_disease_service
 from app.services.sustainability_service import SustainabilityService, get_sustainability_service
 from app.services.upload_service import UploadService
 from app.services.weather_risk_service import WeatherRiskService, get_weather_risk_service
+from app.routers.satellite_intelligence import router as satellite_router
 
 logger = logging.getLogger("kshetraiq.api")
 from app.services.activity_service import ActivityService
@@ -108,6 +113,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     weather_service = WeatherService()
     chat_service = ChatService(settings)
     upload_service = UploadService(settings)
+    intelligence_service = IntelligenceService(settings)
 
     # Initialize model adapters (lazy-loaded on demand to preserve startup memory under 512MB)
     model_dir = settings.resolved_model_directory
@@ -295,6 +301,83 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if user is None:
             raise HTTPException(status_code=401, detail="Please sign in to access saved farm records.")
         return user
+
+    # ──────────── Independent Intelligence Workflows ────────────
+    # These routes intentionally use the existing session/token mechanism and
+    # never permit an analysis id from one signed-in user to be read by another.
+    def _intelligence_user(authorization: str | None, session_cookie: str | None) -> str | None:
+        user = _get_auth_user(authorization, session_cookie)
+        return user.user_id if user else None
+
+    @app.get("/api/plant-intelligence/models/status")
+    def plant_intelligence_models_status() -> list[dict[str, Any]]:
+        return intelligence_service.plant_status()
+
+    @app.post("/api/plant-intelligence/analyze")
+    async def analyze_plant_intelligence(
+        file: UploadFile = File(...),
+        models: str | None = Query(default=None, description="Comma-separated optional model names"),
+        authorization: str | None = Header(default=None),
+        kshetraiq_session: str | None = Cookie(default=None),
+    ) -> dict[str, Any]:
+        if file.content_type and file.content_type.lower() not in {"image/jpeg", "image/png", "image/webp"}:
+            raise HTTPException(status_code=415, detail="Upload a JPEG, PNG, or WEBP image.")
+        try:
+            wanted = [x.strip() for x in models.split(",") if x.strip()] if models else None
+            if wanted and any(x not in {"disease_classifier", "sam", "lime", "blip"} for x in wanted):
+                raise ValueError("An unsupported model was requested.")
+            return intelligence_service.create_plant(await _read_limited(file), file.filename or "plant-image.jpg", _intelligence_user(authorization, kshetraiq_session), wanted)
+        except ValueError as e: raise HTTPException(status_code=400, detail=str(e))
+
+    @app.get("/api/plant-intelligence/history")
+    def plant_intelligence_history(authorization: str | None = Header(default=None), kshetraiq_session: str | None = Cookie(default=None)) -> list[dict[str, Any]]:
+        return intelligence_service.history("plant", _intelligence_user(authorization, kshetraiq_session))
+
+    @app.get("/api/plant-intelligence/reports")
+    def plant_intelligence_reports_early(authorization: str | None = Header(default=None), kshetraiq_session: str | None = Cookie(default=None)) -> list[dict[str, Any]]:
+        return [{"analysis_id": x["analysis_id"], "reports": x.get("reports", [])} for x in intelligence_service.history("plant", _intelligence_user(authorization, kshetraiq_session)) if x.get("reports")]
+
+    @app.get("/api/plant-intelligence/{analysis_id}")
+    @app.get("/api/plant-intelligence/{analysis_id}/status")
+    def plant_intelligence_get(analysis_id: str, authorization: str | None = Header(default=None), kshetraiq_session: str | None = Cookie(default=None)) -> dict[str, Any]:
+        result = intelligence_service.get(analysis_id, _intelligence_user(authorization, kshetraiq_session))
+        if not result or result["workflow_type"] != "plant": raise HTTPException(status_code=404, detail="Plant analysis not found.")
+        return result
+
+    # Must be registered before the generic /{analysis_id}/{model} route.
+    @app.post("/api/plant-intelligence/{analysis_id}/report")
+    def plant_intelligence_report_early(analysis_id: str, authorization: str | None = Header(default=None), kshetraiq_session: str | None = Cookie(default=None)) -> Response:
+        try: _, data = intelligence_service.generate_report(analysis_id, _intelligence_user(authorization, kshetraiq_session))
+        except KeyError: raise HTTPException(status_code=404, detail="Plant analysis not found.")
+        except RuntimeError as e: raise HTTPException(status_code=503, detail=str(e))
+        return Response(data, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{analysis_id}.pdf"'})
+
+    @app.post("/api/plant-intelligence/{analysis_id}/{model}")
+    def run_plant_intelligence_model(analysis_id: str, model: str, authorization: str | None = Header(default=None), kshetraiq_session: str | None = Cookie(default=None)) -> dict[str, Any]:
+        try: return intelligence_service.run_plant(analysis_id, model, _intelligence_user(authorization, kshetraiq_session))
+        except KeyError: raise HTTPException(status_code=404, detail="Plant analysis not found.")
+        except ValueError as e: raise HTTPException(status_code=404, detail=str(e))
+
+    @app.get("/api/plant-intelligence/{analysis_id}/assets/{asset_name}")
+    def plant_intelligence_asset(analysis_id: str, asset_name: str, authorization: str | None = Header(default=None), kshetraiq_session: str | None = Cookie(default=None)) -> FileResponse:
+        m = intelligence_service.get(analysis_id, _intelligence_user(authorization, kshetraiq_session))
+        if not m or m["workflow_type"] != "plant": raise HTTPException(status_code=404, detail="Asset not found.")
+        candidates = [m["original_image"]] + [p for r in m["executed_models"].values() for p in r.get("visual_assets", [])]
+        if m.get("composite_2x2"):
+            candidates.append(m["composite_2x2"])
+        path = next((Path(p) for p in candidates if Path(p).name == asset_name), None)
+        if not path or not path.is_file(): raise HTTPException(status_code=404, detail="Asset not found.")
+        return FileResponse(path)
+
+    @app.get("/api/plant-intelligence/{analysis_id}/report")
+    @app.get("/api/plant-intelligence/{analysis_id}/report/preview")
+    def plant_intelligence_report_get(analysis_id: str, authorization: str | None = Header(default=None), kshetraiq_session: str | None = Cookie(default=None)) -> FileResponse:
+        m=intelligence_service.get(analysis_id, _intelligence_user(authorization, kshetraiq_session)); reports=(m or {}).get("reports", [])
+        if not reports or not Path(reports[-1]["path"]).is_file(): raise HTTPException(status_code=404, detail="No generated report found.")
+        return FileResponse(reports[-1]["path"], media_type="application/pdf")
+
+    # Mount dedicated Satellite Intelligence router
+    app.include_router(satellite_router)
 
     async def _read_limited(file: UploadFile) -> bytes:
         """Read an upload in bounded chunks to avoid unbounded memory use."""

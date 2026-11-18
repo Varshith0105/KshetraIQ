@@ -38,6 +38,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "../context/AuthContext";
 import { useScreenContext } from "../context/ScreenContext";
 import { INDIA_LOCATIONS, SUPPORTED_STATES } from "./indiaLocations";
+import { SATELLITE_NDVI_APP_URL } from "../constants";
 
 /* ── helpers ─────────────────────────────────────────────── */
 function getApiBaseUrl(): string {
@@ -501,6 +502,32 @@ export default function DashboardPage() {
   }, [authChecking, globalUser, router]);
   const [language, setLanguage] = useState<Lang>("en");
   const [view, setView] = useState<View>("dashboard");
+
+  // Synchronize view with URL param if present (e.g. ?view=disease or #disease)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const targetView = params.get("view") || (window.location.hash ? window.location.hash.replace("#", "") : null);
+      if (
+        targetView &&
+        [
+          "dashboard",
+          "assessment",
+          "recommendations",
+          "weather",
+          "soil",
+          "irrigation",
+          "market",
+          "disease",
+          "reports",
+          "registry",
+          "settings",
+        ].includes(targetView)
+      ) {
+        setView(targetView as View);
+      }
+    }
+  }, []);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const t = useTranslations(language);
 
@@ -936,6 +963,49 @@ export default function DashboardPage() {
   const [diseaseResult, setDiseaseResult] = useState<any>(null);
   const [diseaseLoading, setDiseaseLoading] = useState(false);
   const [diseaseError, setDiseaseError] = useState("");
+  const [plantAnalysis, setPlantAnalysis] = useState<any>(null);
+  const [plantModelStatus, setPlantModelStatus] = useState<any[]>([]);
+  const [plantReportLoading, setPlantReportLoading] = useState(false);
+
+  async function handleDownloadPlantReport(aid?: string) {
+    const targetId = aid || plantAnalysis?.analysis_id;
+    if (!targetId) return;
+    setPlantReportLoading(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/plant-intelligence/${targetId}/report`, {
+        method: "POST",
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.detail || "Plant report generation failed.");
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `plant_intelligence_report_${targetId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e: any) {
+      alert(`Could not download report: ${e.message}`);
+    } finally {
+      setPlantReportLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetch(`${apiUrl}/api/plant-intelligence/models/status`, {
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      credentials: "include",
+    }).then(async (response) => {
+      const payload: unknown = await response.json().catch(() => null);
+      if (response.ok && Array.isArray(payload)) setPlantModelStatus(payload);
+    }).catch(() => undefined);
+  }, [apiUrl, authToken]);
 
   // ──── Irrigation Calculator State ────
   const [irrCrop, setIrrCrop] = useState("Rice");
@@ -1035,6 +1105,16 @@ export default function DashboardPage() {
       }
     } else if (view === "disease") {
       base.disease_file = diseaseFile?.name;
+      if (plantAnalysis) {
+        base.analysis_id = plantAnalysis.analysis_id;
+        base.sam_status = plantAnalysis.executed_models?.sam?.status;
+        base.lime_status = plantAnalysis.executed_models?.lime?.status;
+        base.blip_caption = plantAnalysis.executed_models?.blip?.result?.caption;
+        base.blip_detailed_description =
+          plantAnalysis.executed_models?.blip?.result?.detailed_caption ||
+          plantAnalysis.executed_models?.blip?.result?.full_description ||
+          plantAnalysis.executed_models?.blip?.result?.caption;
+      }
       if (diseaseResult) {
         base.disease_label = (diseaseResult as any).predicted_class || (diseaseResult as any).label;
         base.disease_label_te = (diseaseResult as any).label_te;
@@ -1072,7 +1152,7 @@ export default function DashboardPage() {
     irrCrop, irrCropDays, irrSoilMoisture, irrSoilType, irrTemp,
     irrHumidity, irrRainfallForecast, irrAreaAcres, irrResult,
     mktCommodity, mktMandi, mktDaysAhead, mktResult,
-    diseaseFile, diseaseResult,
+    diseaseFile, diseaseResult, plantAnalysis,
     savedAssessments, authUser,
     soilScoreResult,
   ]);
@@ -1457,12 +1537,13 @@ export default function DashboardPage() {
     setDiseaseLoading(true);
     setDiseaseError("");
     setDiseaseResult(null);
+    setPlantAnalysis(null);
     try {
       const formData = new FormData();
       formData.append("file", diseaseFile);
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 45000);
-      const res = await fetch(`${apiUrl}/api/v1/predictions/plant-disease`, {
+      const timeoutId = setTimeout(() => controller.abort(), 300000);
+      const res = await fetch(`${apiUrl}/api/plant-intelligence/analyze`, {
         method: "POST",
         headers: {
           ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
@@ -1477,9 +1558,75 @@ export default function DashboardPage() {
         throw new Error(err?.detail || `HTTP ${res.status}`);
       }
       const data = await res.json();
-      setDiseaseResult(data);
+      setPlantAnalysis(data);
+      const classifier = data?.executed_models?.disease_classifier;
+      if (classifier?.result) setDiseaseResult(classifier.result);
+      if (classifier?.error) setDiseaseError(classifier.error);
+
+      // Register screen with latest plant analysis data
+      registerScreen("disease", "Plant Disease & Intelligence", {
+        analysis_id: data.analysis_id,
+        disease: classifier?.result?.predicted_class,
+        confidence: classifier?.result?.confidence_pct,
+        caption: data?.executed_models?.blip?.result?.caption,
+      });
+
+      // Poll for background model completion (SAM, LIME, BLIP run in background threads)
+      const analysisId = data.analysis_id;
+      const pollInterval = setInterval(async () => {
+        try {
+          const pollRes = await fetch(`${apiUrl}/api/plant-intelligence/${analysisId}`, {
+            headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+            credentials: "include",
+          });
+          if (!pollRes.ok) { clearInterval(pollInterval); return; }
+          const pollData = await pollRes.json();
+          setPlantAnalysis(pollData);
+          const models = pollData?.executed_models || {};
+          const allDone = ["sam", "lime", "blip"].every(
+            (m) => models[m]?.status === "COMPLETED" || models[m]?.status === "FAILED"
+          );
+          if (allDone) {
+            clearInterval(pollInterval);
+            setDiseaseLoading(false);
+          }
+        } catch {
+          clearInterval(pollInterval);
+          setDiseaseLoading(false);
+        }
+      }, 4000); // poll every 4 seconds
+
+      // Safety: stop polling after 10 minutes
+      setTimeout(() => { clearInterval(pollInterval); setDiseaseLoading(false); }, 600000);
     } catch (e: any) {
-      setDiseaseError(e?.name === "AbortError" ? "Disease diagnostic timed out. Please try with a smaller image." : (e.message || "Disease screening failed"));
+      setDiseaseError(e?.name === "AbortError" ? "Complete plant analysis timed out. The saved analysis can be retried from this image." : (e.message || "Disease screening failed"));
+      setDiseaseLoading(false);
+    }
+  }
+
+  async function handleRunMissingModels(aid: string) {
+    if (!aid || diseaseLoading) return;
+    setDiseaseLoading(true);
+    setDiseaseError("");
+    try {
+      const pending = ["sam", "lime", "blip"];
+      for (const m of pending) {
+        await fetch(`${apiUrl}/api/plant-intelligence/${aid}/${m}`, {
+          method: "POST",
+          headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+          credentials: "include",
+        });
+      }
+      const res = await fetch(`${apiUrl}/api/plant-intelligence/${aid}`, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+        credentials: "include",
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setPlantAnalysis(updated);
+      }
+    } catch (e: any) {
+      setDiseaseError(e.message || "Failed to complete missing models.");
     } finally {
       setDiseaseLoading(false);
     }
@@ -1924,6 +2071,11 @@ export default function DashboardPage() {
         {badge && <span className="nav-badge">{badge}</span>}
       </button>
     );
+    const intelligenceLink = (icon: React.ReactNode, label: string, href: string) => (
+      <button key={href} className="nav-item" onClick={() => { router.push(href); setSidebarOpen(false); }}>
+        <span className="nav-icon">{icon}</span><span className="nav-item-label">{label}</span><span className="nav-badge">New</span>
+      </button>
+    );
 
     return (
       <>
@@ -1979,7 +2131,27 @@ export default function DashboardPage() {
                 {language === "te" ? "విశ్లేషణ మోడల్స్" : "AI Modules"}
               </span>
               {navItem(<TrendingUpIcon size={15} />, t.navMarket, "market", "Live")}
-              {navItem(<BugIcon size={15} />, t.navDisease, "disease", "Live")}
+              {navItem(
+                <BugIcon size={15} />,
+                language === "te" ? "మొక్కల వ్యాధులు & AI ఇంటెలిజెన్స్" : "Plant Disease & Intelligence",
+                "disease",
+                "Live"
+              )}
+              <a
+                key="satellite-intelligence-external"
+                href={SATELLITE_NDVI_APP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="nav-item"
+                onClick={() => setSidebarOpen(false)}
+                style={{ textDecoration: "none" }}
+              >
+                <span className="nav-icon"><MapPinIcon size={15} /></span>
+                <span className="nav-item-label">
+                  {language === "te" ? "శాటిలైట్ ఇంటెలిజెన్స్ (NDVI)" : "Satellite Intelligence (NDVI)"}
+                </span>
+                <span className="nav-badge" style={{ background: "#2563eb", color: "#ffffff" }}>External ↗</span>
+              </a>
             </div>
 
             <div className="nav-group">
@@ -4558,23 +4730,35 @@ export default function DashboardPage() {
   }
 
   /* ══════════════════════════════════════════════════════════
-     PLANT DISEASE SCREENING VIEW (Genuine ResNet50)
+     PLANT DISEASE & INTELLIGENCE INTEGRATED VIEW
+     (ResNet50 + SAM + LIME + BLIP)
   ══════════════════════════════════════════════════════════ */
   function DiseaseView() {
+    const executed = plantAnalysis?.executed_models || {};
+    const classifier = executed.disease_classifier?.result || diseaseResult;
+    const sam = executed.sam?.result;
+    const lime = executed.lime?.result;
+    const blip = executed.blip?.result;
+
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 900 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 24, maxWidth: 1040, width: "100%" }}>
+        {/* Upload & Workspace Card */}
         <div className="card">
           <div className="card-header">
             <span className="card-title">
               <span className="card-title-icon"><BugIcon size={18} /></span>
-              {language === "te" ? "మొక్కల తెగుళ్ల నిర్ధారణ — ResNet50 విజన్" : "Plant Disease Screening — ResNet50 Vision Model"}
+              {language === "te"
+                ? "మొక్కల తెగుళ్ల సమగ్ర పరిశోధనా కేంద్రం — ResNet50, SAM, LIME & BLIP"
+                : "Plant Disease & Intelligence Workspace — ResNet50, SAM, LIME & BLIP"}
             </span>
             <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", fontStyle: "italic" }}>
-              23-Class · capstone-final/plant_disease.h5
+              Integrated Research Pipeline · Same Original Upload
             </span>
           </div>
+
           <div className="card-body">
-            <div style={{ padding: 16, background: "var(--page-bg)", borderRadius: "var(--r-md)", border: "2px dashed var(--border)", textAlign: "center" }}>
+            {/* Upload Zone */}
+            <div style={{ padding: 20, background: "var(--page-bg)", borderRadius: "var(--r-md)", border: "2px dashed var(--border)", textAlign: "center" }}>
               <label htmlFor="disease-photo-input" style={{ cursor: "pointer", display: "block" }}>
                 <input
                   id="disease-photo-input"
@@ -4583,98 +4767,463 @@ export default function DashboardPage() {
                   style={{ display: "none" }}
                   onChange={handleDiseaseFileSelect}
                 />
-                <div style={{ color: "var(--green-600)", marginBottom: 8 }}><ImageIcon size={32} /></div>
-                <div style={{ fontWeight: 600, fontSize: "0.92rem", color: "var(--green-950)" }}>
-                  {language === "te" ? "ఆకు / పంట ఫోటో అప్‌లోడ్ చేయండి" : "Upload Crop Leaf Photo"}
+                <div style={{ color: "var(--green-600)", marginBottom: 8 }}><ImageIcon size={36} /></div>
+                <div style={{ fontWeight: 600, fontSize: "0.98rem", color: "var(--green-950)" }}>
+                  {language === "te" ? "ఆకు / పంట ఫోటోను అప్‌లోడ్ చేయండి" : "Upload Crop Leaf Photo for Complete Analysis"}
                 </div>
-                <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 4 }}>
-                  JPEG, PNG, WEBP · {language === "te" ? "గరిష్టం 10MB" : "Max 10 MB"}
+                <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: 4 }}>
+                  JPEG, PNG, WEBP · {language === "te" ? "గరిష్టం 10MB · ఒకే చిత్రంతో అన్ని మోడళ్ల విశ్లేషణ" : "Max 10 MB · Evaluated simultaneously across all vision models"}
                 </div>
               </label>
             </div>
 
+            {/* Preview & Action Button */}
             {diseasePreviewUrl && (
-              <div className="disease-preview-box">
-                <img src={diseasePreviewUrl} alt="Leaf preview" className="disease-preview-img" />
-              </div>
-            )}
-
-            {diseaseFile && (
-              <div style={{ marginTop: 12, display: "flex", gap: 12, alignItems: "center" }}>
-                <span style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>
-                  {diseaseFile.name} ({(diseaseFile.size / 1024).toFixed(0)} KB)
-                </span>
-                <button className="btn-next" onClick={handleDiseaseScreening} disabled={diseaseLoading} type="button">
-                  <BugIcon size={15} />
-                  <span>{diseaseLoading ? (language === "te" ? "విశ్లేషిస్తోంది..." : "Analyzing...") : (language === "te" ? "రోగ నిర్ధారణ చేయండి" : "Run Disease Screening")}</span>
-                </button>
+              <div style={{ marginTop: 16, display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center" }}>
+                <div style={{ width: 140, height: 140, borderRadius: 10, overflow: "hidden", border: "2px solid var(--border)", flexShrink: 0 }}>
+                  <img src={diseasePreviewUrl} alt="Leaf preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 240 }}>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-primary)" }}>
+                    {diseaseFile?.name} ({(diseaseFile ? diseaseFile.size / 1024 : 0).toFixed(0)} KB)
+                  </div>
+                  <p style={{ margin: "4px 0 12px 0", fontSize: "0.78rem", color: "var(--text-secondary)" }}>
+                    Original image is preserved and dispatched to ResNet50 (Classification), SAM (Segmentation), LIME (Explainability), and BLIP (Detailed Description).
+                  </p>
+                  <button
+                    className="btn-next"
+                    onClick={handleDiseaseScreening}
+                    disabled={diseaseLoading}
+                    type="button"
+                    style={{ padding: "10px 20px", fontSize: "0.9rem", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 8 }}
+                  >
+                    <SparklesIcon size={16} />
+                    <span>
+                      {diseaseLoading
+                        ? (language === "te" ? "సమగ్ర విశ్లేషణ నడుస్తోంది..." : "Running Complete Plant Analysis…")
+                        : (language === "te" ? "పూర్తి విశ్లేషణ చేయండి (అన్ని మోడళ్లు)" : "Run Complete Plant Analysis (All Models)")}
+                    </span>
+                  </button>
+                </div>
               </div>
             )}
 
             {diseaseError && (
-              <div style={{ marginTop: 12, padding: "10px 14px", background: "var(--red-bg)", borderRadius: "var(--r-md)", fontSize: "0.82rem", color: "var(--red-text)" }}>
-                {diseaseError}
+              <div style={{ marginTop: 14, padding: "12px 16px", background: "var(--red-bg)", borderRadius: "var(--r-md)", fontSize: "0.82rem", color: "var(--red-text)" }}>
+                <strong>Execution Note:</strong> {diseaseError}
               </div>
             )}
 
-            {diseaseResult && (
-              <div style={{ marginTop: 20 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                  <div className="stat-highlight-card" style={{ background: diseaseResult.is_healthy ? "var(--green-50)" : "var(--red-bg)", border: diseaseResult.is_healthy ? "1px solid var(--green-200)" : "1px solid #f5c6c6" }}>
-                    <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", textTransform: "uppercase" }}>
-                      {language === "te" ? "నిర్ధారణ" : "Diagnosis"}
-                    </span>
-                    <div style={{ fontSize: "1.1rem", fontWeight: 700, color: diseaseResult.is_healthy ? "var(--green-800)" : "var(--red-text)", marginTop: 4 }}>
-                      {diseaseResult.predicted_class.replace(/_/g, " ")}
-                    </div>
-                    <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)", marginTop: 2 }}>
-                      {diseaseResult.label_te}
-                    </div>
-                  </div>
-                  <div className="stat-highlight-card">
-                    <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", textTransform: "uppercase" }}>
-                      {language === "te" ? "విశ్వసనీయత" : "Confidence"}
-                    </span>
-                    <div className="stat-highlight-val">{diseaseResult.confidence_pct.toFixed(1)}<span style={{ fontSize: "0.8rem", fontWeight: 400 }}>%</span></div>
-                    <div className="confidence-meter">
-                      <div className="confidence-meter-fill" style={{ width: `${Math.min(100, diseaseResult.confidence_pct)}%` }} />
-                    </div>
-                  </div>
-                </div>
-
-                {!diseaseResult.is_healthy && (
-                  <div style={{ marginTop: 16, padding: 16, background: "var(--green-50)", borderRadius: "var(--r-md)", border: "1px solid var(--green-200)" }}>
-                    <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--green-900)" }}>
-                      {language === "te" ? "ICAR నివారణ సూచనలు" : "ICAR Recommended Mitigation"}
-                    </div>
-                    <p style={{ marginTop: 6, fontSize: "0.82rem", color: "var(--text-primary)", lineHeight: 1.55 }}>
-                      {diseaseResult.recommended_mitigation}
-                    </p>
-                  </div>
-                )}
-
-                {diseaseResult.top_candidates && diseaseResult.top_candidates.length > 1 && (
-                  <div style={{ marginTop: 14 }}>
-                    <div style={{ fontWeight: 600, fontSize: "0.82rem", color: "var(--green-950)", marginBottom: 6 }}>
-                      {language === "te" ? "ఇతర సాధ్యమైన నిర్ధారణలు" : "Other Possible Diagnoses"}
-                    </div>
-                    {diseaseResult.top_candidates.slice(1, 4).map((c: any, i: number) => (
-                      <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 12px", background: "var(--page-bg)", borderRadius: "var(--r-sm)", marginBottom: 4, fontSize: "0.8rem" }}>
-                        <span>{c.class_name.replace(/_/g, " ")} ({c.label_te})</span>
-                        <span style={{ fontWeight: 600, color: "var(--green-800)" }}>{(c.confidence * 100).toFixed(1)}%</span>
+            {/* Model Readiness Row */}
+            <div style={{ marginTop: 20 }}>
+              <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>
+                Research Model Readiness
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 8 }}>
+                {[
+                  { name: "ResNet50 Vision", key: "disease_classifier", desc: "23-Class foliar classifier" },
+                  { name: "SAM ViT-B", key: "sam", desc: "Instance segmentation" },
+                  { name: "LIME Explainer", key: "lime", desc: "Superpixel influence" },
+                  { name: "BLIP Captioner", key: "blip", desc: "Vision-language captioning" },
+                ].map((m) => {
+                  const run = executed[m.key];
+                  // Priority: actual run status > API model availability status > READY
+                  const apiStatus = plantModelStatus.find((p) => p.model === m.key)?.status;
+                  const st = run?.status && run.status !== "NOT_RUN" ? run.status : (apiStatus || "CHECKING");
+                  const isProcessing = st === "PROCESSING";
+                  return (
+                    <div key={m.key} style={{ padding: "8px 12px", background: "var(--page-bg)", borderRadius: 8, border: `1px solid ${isProcessing ? "#fbbf24" : "var(--border)"}`, transition: "border-color 0.3s" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>{m.name}</span>
+                        <span className={`status-chip ${String(st).toLowerCase()}`}>{st}</span>
                       </div>
-                    ))}
-                  </div>
-                )}
-
-                <div style={{ marginTop: 12, padding: "10px 14px", background: "var(--amber-bg)", borderRadius: "var(--r-md)", fontSize: "0.75rem", color: "var(--amber-text)", display: "flex", gap: 8 }}>
-                  <InfoIcon size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                  <span>{diseaseResult.disclaimer}</span>
-                </div>
+                      <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: 2 }}>
+                        {run?.execution_time_sec ? `${run.execution_time_sec}s runtime` : m.desc}
+                      </div>
+                      {isProcessing && (
+                        <div style={{ marginTop: 4, height: 2, background: "#e5e7eb", borderRadius: 1, overflow: "hidden" }}>
+                          <div style={{ height: "100%", background: "#f59e0b", width: "60%", animation: "slide-progress 1.5s ease-in-out infinite" }} />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            )}
+            </div>
           </div>
         </div>
+
+        {/* RESULTS SECTION: Shown once analysis completes */}
+        {plantAnalysis && (
+          <>
+            {/* Integrated 4-Panel Research Visualization (Notebook Cell 15 Output) */}
+            <div className="card">
+              <div className="card-header">
+                <span className="card-title">
+                  <span className="card-title-icon"><ImageIcon size={18} /></span>
+                  Integrated 4-Panel Research Visualization (Notebook Output)
+                </span>
+                <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
+                  Multi-Model Foliar Analysis · ResNet50, SAM, LIME &amp; BLIP
+                </span>
+              </div>
+              <div className="card-body">
+                <p style={{ margin: "0 0 12px 0", fontSize: "0.82rem", color: "var(--text-secondary)" }}>
+                  Direct reproduction of the integrated multi-model research figure combining:
+                  <strong> Original Leaf</strong>, <strong>SAM2/SAM Segmentation Overlay</strong>, <strong>BLIP Image Understanding</strong>, and <strong>LIME Superpixel Explanation</strong>.
+                </p>
+                <div style={{ borderRadius: 12, overflow: "hidden", border: "2px solid var(--border)", background: "#000", textAlign: "center" }}>
+                  <img
+                    src={`${apiUrl}/api/plant-intelligence/${plantAnalysis.analysis_id}/assets/integrated_plant_disease_results.png`}
+                    alt="Integrated Plant Disease Analysis Using ResNet50, SAM, BLIP and LIME"
+                    style={{ width: "100%", maxHeight: 680, objectFit: "contain", display: "block" }}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLElement).style.display = "none";
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Diagnostic Findings & Prescription Banner */}
+            {classifier && (
+              <div className="card">
+                <div className="card-header">
+                  <span className="card-title">
+                    <span className="card-title-icon"><BugIcon size={18} /></span>
+                    ResNet50 Vision Classifier Diagnosis
+                  </span>
+                  <span className="status-chip ready">CONFIRMED INFERENCE</span>
+                </div>
+                <div className="card-body">
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <div className="stat-highlight-card" style={{ background: classifier.is_healthy ? "var(--green-50)" : "var(--red-bg)", border: classifier.is_healthy ? "1px solid var(--green-200)" : "1px solid #f5c6c6" }}>
+                      <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", textTransform: "uppercase" }}>
+                        {language === "te" ? "రోగ నిర్ధారణ" : "Identified Crop Disease"}
+                      </span>
+                      <div style={{ fontSize: "1.2rem", fontWeight: 700, color: classifier.is_healthy ? "var(--green-800)" : "var(--red-text)", marginTop: 4 }}>
+                        {classifier.predicted_class?.replace(/_/g, " ")}
+                      </div>
+                      <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginTop: 2 }}>
+                        {classifier.label_te}
+                      </div>
+                    </div>
+                    <div className="stat-highlight-card">
+                      <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", textTransform: "uppercase" }}>
+                        {language === "te" ? "విశ్వసనీయత" : "Softmax Confidence"}
+                      </span>
+                      <div className="stat-highlight-val">{classifier.confidence_pct?.toFixed(1)}<span style={{ fontSize: "0.8rem", fontWeight: 400 }}>%</span></div>
+                      <div className="confidence-meter">
+                        <div className="confidence-meter-fill" style={{ width: `${Math.min(100, classifier.confidence_pct || 0)}%` }} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ICAR Mitigation */}
+                  <div style={{ marginTop: 16, padding: 16, background: "var(--green-50)", borderRadius: "var(--r-md)", border: "1px solid var(--green-200)" }}>
+                    <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--green-900)" }}>
+                      {language === "te" ? "ICAR సిఫార్సు చేసిన నివారణ చర్యలు" : "ICAR Recommended Agronomic Action"}
+                    </div>
+                    <p style={{ marginTop: 6, fontSize: "0.85rem", color: "var(--text-primary)", lineHeight: 1.55 }}>
+                      {classifier.recommended_mitigation || classifier.actionable_recommendations}
+                    </p>
+                  </div>
+
+                  {/* Top Candidate Distribution */}
+                  {classifier.top_candidates && classifier.top_candidates.length > 1 && (
+                    <div style={{ marginTop: 16 }}>
+                      <div style={{ fontWeight: 600, fontSize: "0.82rem", color: "var(--green-950)", marginBottom: 8 }}>
+                        Top Candidate Class Probabilities (ResNet50 Softmax Distribution)
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {classifier.top_candidates.slice(0, 5).map((c: any, i: number) => {
+                          const rawConf = Number(c.confidence) || 0;
+                          const confPct = rawConf > 1 ? Math.min(100, rawConf) : Math.min(100, rawConf * 100);
+                          return (
+                            <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 12px", background: "var(--page-bg)", borderRadius: 6, fontSize: "0.8rem" }}>
+                              <span style={{ fontWeight: 500 }}>{c.class_name?.replace(/_/g, " ")} ({c.label_te})</span>
+                              <div style={{ display: "flex", alignItems: "center", gap: 10, width: 140 }}>
+                                <div style={{ flex: 1, height: 6, background: "var(--border)", borderRadius: 3, overflow: "hidden" }}>
+                                  <div style={{ height: "100%", width: `${Math.min(100, confPct).toFixed(0)}%`, background: i === 0 ? "var(--green-600)" : "var(--text-muted)" }} />
+                                </div>
+                                <span style={{ fontWeight: 600, minWidth: 40, textAlign: "right", color: i === 0 ? "var(--green-800)" : "var(--text-secondary)" }}>
+                                  {confPct.toFixed(1)}%
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* SAM & LIME Individual Model Breakdown Cards */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(460px, 1fr))", gap: 20 }}>
+              {/* SAM Card */}
+              <div className="card">
+                <div className="card-header">
+                  <span className="card-title">
+                    <span className="card-title-icon">📐</span>
+                    SAM (Segment Anything) Zero-Shot Segmentation — Image + Text
+                  </span>
+                  <span className={`status-chip ${executed.sam?.status?.toLowerCase() || "ready"}`}>
+                    {executed.sam?.status || "READY"}
+                  </span>
+                </div>
+                <div className="card-body">
+                  <p style={{ margin: "0 0 10px 0", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+                    Zero-shot instance segmentation isolating vegetative foliar canopy from ambient noise.
+                  </p>
+                  {sam ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: "0.78rem", background: "var(--page-bg)", padding: 10, borderRadius: 8 }}>
+                        <span>Masks: <strong>{sam.mask_count}</strong></span>
+                        <span>Canopy Coverage: <strong>{sam.leaf_coverage_pct}%</strong></span>
+                        <span>Total Pixels: <strong>{sam.total_segmented_pixels?.toLocaleString()}</strong></span>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                        <div>
+                          <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", display: "block", marginBottom: 4 }}>Jet Colormap Overlay (Notebook Style)</span>
+                          <img
+                            src={`${apiUrl}/api/plant-intelligence/${plantAnalysis.analysis_id}/assets/sam-overlay.png`}
+                            alt="SAM Overlay"
+                            style={{ width: "100%", borderRadius: 8, border: "1px solid var(--border)" }}
+                          />
+                        </div>
+                        <div>
+                          <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", display: "block", marginBottom: 4 }}>Foliar Cutout</span>
+                          <img
+                            src={`${apiUrl}/api/plant-intelligence/${plantAnalysis.analysis_id}/assets/sam-segmented.png`}
+                            alt="SAM Cutout"
+                            style={{ width: "100%", borderRadius: 8, border: "1px solid var(--border)" }}
+                          />
+                        </div>
+                      </div>
+                      <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--text-secondary)", lineHeight: 1.45 }}>{sam.summary}</p>
+                    </div>
+                  ) : executed.sam?.status === "PROCESSING" ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <div style={{ height: 160, background: "linear-gradient(90deg,#f0f4f1 25%,#e8f0ea 50%,#f0f4f1 75%)", backgroundSize: "400% 100%", borderRadius: 8, animation: "shimmer 1.5s infinite" }} />
+                      <div style={{ fontSize: "0.8rem", color: "#92400e", fontWeight: 600 }}>⏳ SAM segmentation running in background…</div>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                      {executed.sam?.error ? <span style={{ color: "#991b1b" }}>⚠ {executed.sam.error}</span> : "Awaiting segmentation output."}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* LIME Card */}
+              <div className="card">
+                <div className="card-header">
+                  <span className="card-title">
+                    <span className="card-title-icon">🔍</span>
+                    LIME (Explainability & Lesion Superpixels) — Image + Text
+                  </span>
+                  <span className={`status-chip ${executed.lime?.status?.toLowerCase() || "ready"}`}>
+                    {executed.lime?.status || "READY"}
+                  </span>
+                </div>
+                <div className="card-body">
+                  <p style={{ margin: "0 0 10px 0", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+                    Perturbs 150 local superpixels to calculate boundaries that drove the ResNet50 diagnosis.
+                  </p>
+                  {lime ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                      <div style={{ fontSize: "0.78rem", background: "var(--page-bg)", padding: 10, borderRadius: 8 }}>
+                        Explained Target: <strong>{lime.explained_class}</strong> · Features Analyzed: <strong>{lime.features_analyzed}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", display: "block", marginBottom: 4 }}>Marked Superpixel Boundaries</span>
+                        <img
+                          src={`${apiUrl}/api/plant-intelligence/${plantAnalysis.analysis_id}/assets/lime-explanation.png`}
+                          alt="LIME Explanation"
+                          style={{ width: "100%", borderRadius: 8, border: "1px solid var(--border)" }}
+                        />
+                      </div>
+                      <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--text-secondary)", lineHeight: 1.45 }}>
+                        {lime.interpretation}
+                      </p>
+                    </div>
+                  ) : executed.lime?.status === "PROCESSING" ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <div style={{ height: 160, background: "linear-gradient(90deg,#f0f4f1 25%,#e8f0ea 50%,#f0f4f1 75%)", backgroundSize: "400% 100%", borderRadius: 8, animation: "shimmer 1.5s infinite" }} />
+                      <div style={{ fontSize: "0.8rem", color: "#92400e", fontWeight: 600 }}>⏳ LIME superpixel analysis running in background…</div>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                      {executed.lime?.error ? <span style={{ color: "#991b1b" }}>⚠ {executed.lime.error}</span> : "Awaiting LIME explanation."}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Dedicated BLIP Section: Detailed Plant Image Description (Image + Text) */}
+            <div className="card">
+              <div className="card-header">
+                <span className="card-title">
+                  <span className="card-title-icon">💬</span>
+                  Detailed Plant Image Description — Salesforce BLIP Vision (Image + Text)
+                </span>
+                <span className="status-chip ready">MULTIMODAL PERCEPTION</span>
+              </div>
+              <div className="card-body">
+                <div style={{ padding: 18, background: "var(--page-bg)", borderRadius: 10, border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 14 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                    <div>
+                      <strong style={{ fontSize: "0.95rem", color: "var(--green-950)" }}>Salesforce BLIP Foliar Scene Perception &amp; Description</strong>
+                      <div style={{ fontSize: "0.74rem", color: "var(--text-muted)" }}>Model: Salesforce/blip-image-captioning-base · Conditional foliar feature grounding</div>
+                    </div>
+                    <span className={`status-chip ${executed.blip?.status?.toLowerCase() || "not_run"}`}>{executed.blip?.status || "NOT_RUN"}</span>
+                  </div>
+
+                  {blip ? (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 18, alignItems: "start" }}>
+                      {/* Visual Asset */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase" }}>Generated Observation Overlay:</span>
+                        <img
+                          src={`${apiUrl}/api/plant-intelligence/${plantAnalysis.analysis_id}/assets/blip-analysis.png`}
+                          alt="BLIP Analysis"
+                          onError={(e) => {
+                            const target = e.currentTarget as HTMLImageElement;
+                            if (!target.dataset.fallback) { target.dataset.fallback = "1"; target.src = `${apiUrl}/api/plant-intelligence/${plantAnalysis.analysis_id}/assets/original.jpg`; }
+                          }}
+                          style={{ width: "100%", maxHeight: 300, objectFit: "contain", borderRadius: 8, border: "1px solid var(--border)", background: "#ffffff" }}
+                        />
+                      </div>
+
+                      {/* Natural Language Observations */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                        <div style={{ padding: 14, background: "white", borderRadius: 8, border: "1px solid var(--border)" }}>
+                          <span style={{ fontSize: "0.72rem", color: "var(--green-800)", textTransform: "uppercase", fontWeight: 700, display: "block", marginBottom: 6 }}>
+                            Detailed Foliar Observations:
+                          </span>
+                          <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-primary)", lineHeight: 1.6, fontWeight: 500 }}>
+                            &quot;{blip.detailed_caption || blip.full_description || blip.caption}&quot;
+                          </p>
+                        </div>
+
+                        {blip.caption && blip.detailed_caption && (
+                          <div style={{ padding: 12, background: "var(--page-bg)", borderRadius: 8, border: "1px solid var(--border)" }}>
+                            <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600, display: "block", marginBottom: 4 }}>
+                              Concise Caption Summary:
+                            </span>
+                            <p style={{ margin: 0, fontSize: "0.82rem", color: "var(--text-secondary)", fontStyle: "italic" }}>
+                              &quot;{blip.caption}&quot;
+                            </p>
+                          </div>
+                        )}
+
+                        <div style={{ padding: "10px 12px", background: "#f0fdf4", borderRadius: 8, border: "1px solid #bbf7d0", fontSize: "0.76rem", color: "#166534", lineHeight: 1.45 }}>
+                          <strong>Independent Foliar Perception:</strong> This visual description details observable physical leaf features (pigmentation, lesion patterns, edge integrity) independently generated by BLIP, complementing the ResNet50 taxonomic disease classification.
+                        </div>
+                      </div>
+                    </div>
+                  ) : executed.blip?.status === "PROCESSING" ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <div style={{ height: 160, background: "linear-gradient(90deg,#f0f4f1 25%,#e8f0ea 50%,#f0f4f1 75%)", backgroundSize: "400% 100%", borderRadius: 8, animation: "shimmer 1.5s infinite" }} />
+                      <div style={{ fontSize: "0.8rem", color: "#92400e", fontWeight: 600 }}>⏳ BLIP foliar observations running in background…</div>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", padding: 12, background: "white", borderRadius: 8, border: "1px solid var(--border)" }}>
+                      {executed.blip?.error ? <span style={{ color: "#991b1b" }}>⚠ {executed.blip.error}</span> : '"Awaiting BLIP detailed foliar observation generation."'}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Live Analysis Progress Banner */}
+            {Object.values(executed).some((x: any) => x?.status === "PROCESSING") && (
+              <div style={{ padding: "12px 16px", background: "#fefce8", borderRadius: 10, border: "1px solid #fde68a", display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 16, height: 16, borderRadius: "50%", border: "2px solid #f59e0b", borderTopColor: "transparent", animation: "spin 0.8s linear infinite", flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "#78350f" }}>Models Running in Background</div>
+                  <div style={{ fontSize: "0.75rem", color: "#92400e" }}>
+                    {["sam", "lime", "blip"]
+                      .filter((m) => executed[m]?.status === "PROCESSING")
+                      .map((m) => m.toUpperCase())
+                      .join(", ")} — Results will appear automatically every 4 seconds
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Action Bar: PDF Report & Chatbot */}
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 14,
+                padding: "16px 20px",
+                background: "var(--green-50)",
+                borderRadius: "var(--r-md)",
+                border: "1px solid var(--green-200)",
+              }}
+            >
+              <div>
+                <strong style={{ fontSize: "0.9rem", color: "var(--green-950)", display: "block" }}>
+                  Complete Multi-Model Analysis Persisted (Session ID: {plantAnalysis.analysis_id})
+                </strong>
+                <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+                  {(() => {
+                    const mkeys = ["disease_classifier", "sam", "lime", "blip"];
+                    const done = mkeys.filter((mk) => executed[mk]?.status === "COMPLETED").length;
+                    const proc = mkeys.filter((mk) => executed[mk]?.status === "PROCESSING").length;
+                    return proc > 0
+                      ? `${done}/4 Models Completed · ${proc} Still Running · Results Update Every 4s`
+                      : `${done}/4 Models Completed · Visual Assets Created · Integrated into Rythu AI Floating Chatbot`;
+                  })()}
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {Object.values(executed).some((x: any) => x?.status === "NOT_RUN" || x?.status === "FAILED") && (
+                  <button
+                    type="button"
+                    className="btn-next"
+                    onClick={() => handleRunMissingModels(plantAnalysis.analysis_id)}
+                    disabled={diseaseLoading}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 16px", background: "#d97706" }}
+                  >
+                    <SparklesIcon size={15} />
+                    <span>{diseaseLoading ? "Running Remaining Models…" : "Run Pending Models (SAM, LIME, BLIP)"}</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn-next"
+                  onClick={() => handleDownloadPlantReport(plantAnalysis.analysis_id)}
+                  disabled={plantReportLoading}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 16px" }}
+                >
+                  <FileTextIcon size={15} />
+                  <span>{plantReportLoading ? "Generating PDF…" : "Download Research PDF Report"}</span>
+                </button>
+                <button
+                  type="button"
+                  className="card-action-btn"
+                  onClick={() => {
+                    setChatOpen(true);
+                    if (chatMinimized) setChatMinimized(false);
+                    handleSendMessage("Explain what each model did for my plant image");
+                  }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 16px" }}
+                >
+                  <BotIcon size={15} />
+                  <span>Ask Rythu AI About This Leaf</span>
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     );
   }

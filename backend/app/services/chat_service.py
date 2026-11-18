@@ -20,6 +20,7 @@ from app.services.agriverse_service import AgriVerseChatService
 from app.services.context_engine import ContextEngine, context_engine
 from app.services.conversation_service import ConversationService, conversation_service
 from app.services.langgraph_orchestrator import LangGraphOrchestrator, langgraph_orchestrator
+from app.services.intelligence_service import IntelligenceService
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ class ChatService:
         self.conversation_service = ConversationService(settings=self.settings)
         self.activity_service = ActivityService(settings=self.settings)
         self.orchestrator = LangGraphOrchestrator(settings=self.settings)
+        self.intelligence = IntelligenceService(self.settings)
 
     def respond(
         self,
@@ -81,6 +83,28 @@ class ChatService:
                 logger.debug("Failed managing user conversation memory: %s", e)
 
         # 3. Check for specific domain anchors
+        # Intelligence tool routing happens before the general agent so the
+        # chatbot can describe persisted model executions and answer research questions.
+        intelligence_words = (
+            "plant analysis", "plant disease", "leaf", "crop disease", "disease",
+            "sam", "lime", "blip", "satellite", "ndvi", "evi",
+            "vegetation", "sentinel", "satellite report", "plant report",
+            "superpixel", "segmentation", "caption", "what did each model do"
+        )
+        is_intelligence_screen = ctx.active_screen_id in ("disease", "plant-intelligence", "satellite-intelligence", "satellite")
+        screen_intelligence_trigger = is_intelligence_screen and any(w in msg_l for w in ("what", "result", "model", "analysis", "output", "explain", "leaf", "disease", "show", "tell me"))
+
+        if any(word in msg_l for word in intelligence_words) or screen_intelligence_trigger:
+            analysis_id = None
+            if ctx.displayed_data and isinstance(ctx.displayed_data, dict):
+                analysis_id = ctx.displayed_data.get("analysis_id")
+            workflow, reply = self.intelligence.chatbot_tool(request.message, user_id, analysis_id=analysis_id)
+            return ChatResponse(
+                reply=reply, answer=reply, conversation_id=conv_id, mode="tool",
+                provider=f"{workflow}_intelligence_tool", screen_id=ctx.active_screen_id,
+                agents_used=[f"{workflow}_intelligence_tool"],
+                disclaimer="Results are retrieved from research model execution manifests.",
+            )
         # Help request
         if msg_l in {"help", "సహాయం", "help me get started"}:
             help_reply = self._handle_help(request.message, lang, assessment)

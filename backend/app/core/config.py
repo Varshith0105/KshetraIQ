@@ -153,6 +153,13 @@ class Settings(BaseSettings):
     groq_api_key: str | None = Field(default=None, validation_alias=AliasChoices("GROQ_API_KEY", "KSHETRAIQ_GROQ_API_KEY"))
     openai_api_key: str | None = Field(default=None, validation_alias=AliasChoices("OPENAI_API_KEY", "KSHETRAIQ_OPENAI_API_KEY"))
     data_gov_in_api_key: str | None = Field(default=None, validation_alias=AliasChoices("DATA_GOV_IN_API_KEY", "KSHETRAIQ_DATA_GOV_IN_API_KEY"))
+    # Optional heavyweight intelligence integrations.  These are deliberately
+    # opt-in: model weights and Earth Engine credentials must never be fetched
+    # or embedded by the API at start-up.
+    sam_checkpoint_path: Path | None = Field(default=None, validation_alias=AliasChoices("SAM_CHECKPOINT_PATH", "KSHETRAIQ_SAM_CHECKPOINT_PATH"))
+    earth_engine_project: str | None = Field(default=None, validation_alias=AliasChoices("EARTH_ENGINE_PROJECT", "KSHETRAIQ_EARTH_ENGINE_PROJECT"))
+    earth_engine_service_account: str | None = Field(default=None, validation_alias=AliasChoices("EARTH_ENGINE_SERVICE_ACCOUNT", "KSHETRAIQ_EARTH_ENGINE_SERVICE_ACCOUNT"))
+    earth_engine_credentials_path: Path | None = Field(default=None, validation_alias=AliasChoices("EARTH_ENGINE_CREDENTIALS_PATH", "KSHETRAIQ_EARTH_ENGINE_CREDENTIALS_PATH"))
 
     # Permit explicit Settings(...) values in tests and app factories while
     # still accepting the deployment aliases used in environment files.
@@ -167,6 +174,21 @@ class Settings(BaseSettings):
     @property
     def resolved_model_directory(self) -> Path:
         return (Path(__file__).resolve().parents[3] / self.model_directory).resolve()
+
+    @property
+    def resolved_sam_checkpoint_path(self) -> Path | None:
+        if self.sam_checkpoint_path and Path(self.sam_checkpoint_path).is_file():
+            return Path(self.sam_checkpoint_path)
+        repo_root = Path(__file__).resolve().parents[3]
+        candidates = [
+            repo_root / "capstone-final" / "sam_vit_b_01ec64.pth",
+            repo_root / "Agriverse_Models" / "sam_vit_b_01ec64.pth",
+            repo_root / "capstone-final" / "sam_vit_h_4b8939.pth",
+        ]
+        for c in candidates:
+            if c.is_file():
+                return c
+        return None
 
     @property
     def resolved_sqlite_db_path(self) -> Path:

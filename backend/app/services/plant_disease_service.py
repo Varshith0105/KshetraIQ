@@ -152,6 +152,48 @@ class PlantDiseaseService:
         self._tflite_input_details: Any = None
         self._tflite_output_details: Any = None
         self._load_error: str | None = None
+        self._loaded_artifact_name: str | None = None
+        self._h5_status_info: dict[str, Any] = {}
+        self._tflite_status_info: dict[str, Any] = {}
+
+    def inspect_artifacts(self) -> dict[str, Any]:
+        """Inspect and validate plant_disease.h5 and plant_disease.tflite."""
+        h5_info: dict[str, Any] = {"exists": False, "size_bytes": 0, "is_lfs_pointer": False, "is_valid_hdf5": False}
+        if self.artifact_path.exists():
+            sz = self.artifact_path.stat().st_size
+            h5_info["exists"] = True
+            h5_info["size_bytes"] = sz
+            head = self.artifact_path.read_bytes()[:120]
+            if sz < 1024 and b"git-lfs" in head:
+                h5_info["is_lfs_pointer"] = True
+                h5_info["detail"] = f"Git LFS text pointer ({sz} bytes). Contains commit pointer, not trained weights."
+            elif head.startswith(b"\x89HDF"):
+                h5_info["is_valid_hdf5"] = True
+                h5_info["detail"] = f"Valid HDF5 trained model weights ({sz / (1024 * 1024):.1f} MB)."
+            else:
+                h5_info["detail"] = f"File exists ({sz} bytes) with unrecognized header."
+
+        tflite_info: dict[str, Any] = {"exists": False, "size_bytes": 0, "is_valid_tflite": False}
+        if self.tflite_path.exists():
+            sz = self.tflite_path.stat().st_size
+            tflite_info["exists"] = True
+            tflite_info["size_bytes"] = sz
+            try:
+                import tensorflow as tf
+                interp = tf.lite.Interpreter(model_path=str(self.tflite_path))
+                interp.allocate_tensors()
+                inp = interp.get_input_details()
+                out = interp.get_output_details()
+                tflite_info["is_valid_tflite"] = True
+                tflite_info["input_shape"] = inp[0]["shape"].tolist() if inp else None
+                tflite_info["output_shape"] = out[0]["shape"].tolist() if out else None
+                tflite_info["detail"] = f"Valid TFLite model ({sz / (1024 * 1024):.1f} MB) with input {tflite_info['input_shape']} -> output {tflite_info['output_shape']}."
+            except Exception as e:
+                tflite_info["detail"] = f"Failed to allocate TFLite tensors: {e}"
+
+        self._h5_status_info = h5_info
+        self._tflite_status_info = tflite_info
+        return {"h5": h5_info, "tflite": tflite_info}
 
     def _ensure_loaded(self) -> None:
         if self._model is not None:
@@ -159,38 +201,47 @@ class PlantDiseaseService:
         if self._load_error:
             raise RuntimeError(f"Plant disease model unavailable: {self._load_error}")
 
-        # 1. Prefer lightweight TFLite model (23MB vs 98MB, low memory footprint)
-        if self.tflite_path.exists():
+        audit = self.inspect_artifacts()
+
+        # 1. Prefer H5 trained weights if valid HDF5 binary (> 1MB) matching notebook architecture
+        if audit["h5"]["is_valid_hdf5"]:
+            try:
+                import keras
+                logger.info("Loading plant disease vision model from verified HDF5: %s (%d bytes)", self.artifact_path, audit["h5"]["size_bytes"])
+                self._model = keras.models.load_model(str(self.artifact_path), compile=False)
+                self._is_tflite = False
+                self._loaded_artifact_name = f"plant_disease.h5 ({audit['h5']['size_bytes'] / (1024*1024):.1f} MB)"
+                logger.info("Successfully loaded plant disease Keras ResNet50 model from plant_disease.h5.")
+                return
+            except Exception as e:
+                logger.warning("Could not load Keras H5 model (%s), checking TFLite: %s", self.artifact_path, e)
+
+        # 2. If H5 is a 133-byte Git LFS pointer or failed, load validated TFLite model
+        if audit["tflite"]["is_valid_tflite"]:
             try:
                 import tensorflow as tf
-                logger.info("Loading plant disease vision model from TFLite: %s", self.tflite_path)
+                logger.info("Loading plant disease vision model from validated TFLite: %s", self.tflite_path)
                 interp = tf.lite.Interpreter(model_path=str(self.tflite_path))
                 interp.allocate_tensors()
                 self._tflite_input_details = interp.get_input_details()
                 self._tflite_output_details = interp.get_output_details()
                 self._model = interp
                 self._is_tflite = True
-                logger.info("Successfully loaded plant disease TFLite model.")
+                self._loaded_artifact_name = f"plant_disease.tflite ({audit['tflite']['size_bytes'] / (1024*1024):.1f} MB)"
+                logger.info("Successfully loaded plant disease TFLite model from plant_disease.tflite.")
                 return
             except Exception as te:
-                logger.warning("Could not load TFLite model, falling back to Keras: %s", te)
+                self._load_error = f"Failed to load validated TFLite model: {te}"
+                logger.exception(self._load_error)
+                raise RuntimeError(self._load_error) from te
 
-        # 2. Fallback to Keras H5 model
-        if not self.artifact_path.exists():
-            self._load_error = f"Artifact not found at {self.artifact_path} or {self.tflite_path}"
-            raise FileNotFoundError(self._load_error)
+        # If neither is available
+        self._load_error = f"No valid plant disease model artifact available. H5: {audit['h5'].get('detail')}, TFLite: {audit['tflite'].get('detail')}"
+        raise FileNotFoundError(self._load_error)
 
-        try:
-            import keras
-
-            logger.info("Loading plant disease vision model from %s", self.artifact_path)
-            self._model = keras.models.load_model(str(self.artifact_path), compile=False)
-            self._is_tflite = False
-            logger.info("Successfully loaded plant disease vision model.")
-        except Exception as e:
-            self._load_error = f"Failed to load Keras model: {e}"
-            logger.exception("Plant disease model loading failed: %s", e)
-            raise RuntimeError(self._load_error) from e
+    @property
+    def classes(self) -> list[str]:
+        return PLANT_DISEASE_CLASSES
 
     @property
     def is_loaded(self) -> bool:
@@ -206,7 +257,8 @@ class PlantDiseaseService:
             return True
         if self._load_error:
             return False
-        return self.tflite_path.is_file() or self.artifact_path.is_file()
+        audit = self.inspect_artifacts()
+        return bool(audit["h5"]["is_valid_hdf5"] or audit["tflite"]["is_valid_tflite"])
 
     def predict_image(self, image_bytes: bytes, filename: str = "upload.jpg") -> dict[str, Any]:
         """Preprocess uploaded leaf photograph and run deep CNN inference."""
@@ -279,6 +331,11 @@ class PlantDiseaseService:
         return {
             "model_id": "plant-disease-v1",
             "model_architecture": "ResNet50 + GlobalAveragePooling2D + Dense(128) + Dense(23)",
+            "active_artifact": self._loaded_artifact_name or ("plant_disease.tflite" if self._is_tflite else "plant_disease.h5"),
+            "artifact_audit": {
+                "h5": self._h5_status_info,
+                "tflite": self._tflite_status_info,
+            },
             "predicted_class": top_class,
             "label_te": meta_top.get("te", top_class),
             "confidence_pct": round(confidence * 100, 2),

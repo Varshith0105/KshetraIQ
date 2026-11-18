@@ -1,0 +1,9 @@
+# Optional intelligence runtimes (install only on a worker with adequate RAM)
+# SAM: place a reviewed ViT-B checkpoint on persistent storage, then set SAM_CHECKPOINT_PATH.
+segment-anything>=1.0
+lime>=0.2.0.1
+scikit-image>=0.22
+# BLIP/Florence are intentionally not listed as enabled: no corresponding local
+# checkpoint exists in this repository. Add reviewed, pinned local artifacts first.
+# Satellite: Earth Engine service-account credentials must be configured.
+earthengine-api>=1.0
