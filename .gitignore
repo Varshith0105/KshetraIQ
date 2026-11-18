@@ -21,6 +21,7 @@ coverage/
 *.db
 backend/.tmp/
 *.log
+*.pth
 .vscode/
 .idea/
 .DS_Store
