@@ -1,7 +1,7 @@
 <!-- KshetraIQ | Comprehensive Platform Documentation -->
 <div align="center">
 
-# 🌾 KshetraIQ
+# 🌾KshetraIQ
 
 ### Autonomous Agricultural Intelligence & Precision Agronomy Platform
 
