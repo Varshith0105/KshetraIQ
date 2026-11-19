@@ -177,8 +177,10 @@ class Settings(BaseSettings):
 
     @property
     def resolved_sam_checkpoint_path(self) -> Path | None:
-        if self.sam_checkpoint_path and Path(self.sam_checkpoint_path).is_file():
-            return Path(self.sam_checkpoint_path)
+        if self.sam_checkpoint_path:
+            p = Path(self.sam_checkpoint_path)
+            if p.is_file() and p.stat().st_size > 10 * 1024 * 1024:
+                return p
         repo_root = Path(__file__).resolve().parents[3]
         candidates = [
             repo_root / "capstone-final" / "sam_vit_b_01ec64.pth",
@@ -186,7 +188,7 @@ class Settings(BaseSettings):
             repo_root / "capstone-final" / "sam_vit_h_4b8939.pth",
         ]
         for c in candidates:
-            if c.is_file():
+            if c.is_file() and c.stat().st_size > 10 * 1024 * 1024:
                 return c
         return None
 

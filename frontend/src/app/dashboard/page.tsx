@@ -491,7 +491,7 @@ const DEFAULT_POPULAR_MANDIS = [
 export default function DashboardPage() {
   const router = useRouter();
   const { user: globalUser, loading: authChecking, logout: globalLogout, token: globalToken, handleAuthSuccess } = useAuth();
-  const { registerScreen, screenContext } = useScreenContext();
+  const { registerScreen } = useScreenContext();
   const _lastScreenRef = useRef<string>("");
 
   // Authentication Route Guard: require valid session to access dashboard
@@ -878,13 +878,23 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (globalUser) {
-      setAuthUser({
-        user_id: globalUser.user_id,
-        email: globalUser.email,
-        display_name: globalUser.full_name,
-        created_at: globalUser.created_at,
+      setAuthUser((prev) => {
+        if (
+          prev &&
+          prev.user_id === globalUser.user_id &&
+          prev.email === globalUser.email &&
+          prev.display_name === globalUser.full_name
+        ) {
+          return prev;
+        }
+        return {
+          user_id: globalUser.user_id,
+          email: globalUser.email,
+          display_name: globalUser.full_name,
+          created_at: globalUser.created_at,
+        };
       });
-      setAuthToken(globalToken);
+      setAuthToken((prev) => (prev === globalToken ? prev : globalToken));
     } else {
       setAuthUser(null);
       setAuthToken(null);
@@ -1604,6 +1614,29 @@ export default function DashboardPage() {
     }
   }
 
+  async function handleRunSingleModel(aid: string, model: string) {
+    if (!aid || diseaseLoading) return;
+    setDiseaseLoading(true);
+    setDiseaseError("");
+    try {
+      const res = await fetch(`${apiUrl}/api/plant-intelligence/${aid}/${model}`, {
+        method: "POST",
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.detail || `Failed to run ${model.toUpperCase()}`);
+      }
+      const updated = await res.json();
+      setPlantAnalysis(updated);
+    } catch (e: any) {
+      setDiseaseError(e.message || `Failed to execute ${model.toUpperCase()}`);
+    } finally {
+      setDiseaseLoading(false);
+    }
+  }
+
   async function handleRunMissingModels(aid: string) {
     if (!aid || diseaseLoading) return;
     setDiseaseLoading(true);
@@ -1611,11 +1644,15 @@ export default function DashboardPage() {
     try {
       const pending = ["sam", "lime", "blip"];
       for (const m of pending) {
-        await fetch(`${apiUrl}/api/plant-intelligence/${aid}/${m}`, {
-          method: "POST",
-          headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
-          credentials: "include",
-        });
+        try {
+          await fetch(`${apiUrl}/api/plant-intelligence/${aid}/${m}`, {
+            method: "POST",
+            headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+            credentials: "include",
+          });
+        } catch (err) {
+          console.error(`Error running model ${m}:`, err);
+        }
       }
       const res = await fetch(`${apiUrl}/api/plant-intelligence/${aid}`, {
         headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
@@ -1710,9 +1747,11 @@ export default function DashboardPage() {
     setApiUrl(getApiBaseUrl());
   }, []);
 
+  const initialFetchDone = useRef(false);
   // Fetch initial data & backend runtime health
   useEffect(() => {
-    if (!apiUrl) return;
+    if (!apiUrl || initialFetchDone.current) return;
+    initialFetchDone.current = true;
     fetch(`${apiUrl}/health`)
       .then((r) => (r.ok ? r.json() : null))
       .then((h) => {
@@ -3761,176 +3800,256 @@ export default function DashboardPage() {
      FARM PROFILE VIEW
   ══════════════════════════════════════════════════════════ */
   function ProfileView() {
+    const farmerDisplayName = authUser?.display_name || globalUser?.full_name || (language === "te" ? "రైతు" : "Registered Farmer");
+    const farmerEmail = authUser?.email || globalUser?.email || "—";
+    const farmerPhone = (globalUser as any)?.phone_number || "—";
+
     return (
-      <div className="card" style={{ maxWidth: 760 }}>
-        <div className="card-header">
-          <span className="card-title">
-            <span className="card-title-icon"><UserIcon size={18} /></span>
-            {language === "te" ? "రైతు & పొలం ప్రొఫైల్" : "Farmer & Holding Profile"}
-          </span>
-          <button
-            className="card-action-btn"
-            onClick={() => { setProfileNotice(""); setProfileEditing(true); }}
-          >
-            {language === "te" ? "సవరించండి" : "Edit Profile"}
-          </button>
-        </div>
-        <div className="card-body">
-          {profileEditing && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 20 }}>
-              <label style={{ display: "grid", gap: 6, fontSize: "0.8rem", fontWeight: 600, color: "var(--text-muted)" }}>
-                Farm / Holding Name
-                <input
-                  className="form-input"
-                  type="text"
-                  value={farmName}
-                  onChange={(event) => setFarmName(event.target.value)}
-                  placeholder="e.g. Sri Venkateswara Farm"
-                />
-              </label>
-              <label style={{ display: "grid", gap: 6, fontSize: "0.8rem", fontWeight: 600, color: "var(--text-muted)" }}>
-                Land Area (Acres)
-                <input
-                  className="form-input"
-                  type="number"
-                  step="0.1"
-                  min="0.1"
-                  value={acreage}
-                  onChange={(event) => setAcreage(event.target.value)}
-                  placeholder="e.g. 5.0"
-                />
-              </label>
-              <label style={{ display: "grid", gap: 6, fontSize: "0.8rem", fontWeight: 600, color: "var(--text-muted)" }}>
-                Agricultural Season
-                <select
-                  className="form-select"
-                  value={season}
-                  onChange={(event) => setSeason(event.target.value)}
-                >
-                  <option value="Kharif">Kharif (Monsoon: Jun – Oct)</option>
-                  <option value="Rabi">Rabi (Winter: Nov – Apr)</option>
-                  <option value="Zaid">Zaid (Summer: Mar – Jun)</option>
-                  <option value="Perennial">Perennial (Year-round)</option>
-                </select>
-              </label>
-              <label style={{ display: "grid", gap: 6, fontSize: "0.8rem", fontWeight: 600, color: "var(--text-muted)" }}>
-                Irrigation Method
-                <select
-                  className="form-select"
-                  value={irrigation}
-                  onChange={(event) => setIrrigation(event.target.value)}
-                >
-                  <option value="Drip">Drip Irrigation (High efficiency)</option>
-                  <option value="Sprinkler">Sprinkler Irrigation</option>
-                  <option value="Canal">Canal Irrigation</option>
-                  <option value="Borewell">Borewell / Tube Well</option>
-                  <option value="Flood">Flood / Furrow</option>
-                  <option value="Rainfed">Rainfed (Dryland)</option>
-                </select>
-              </label>
-              <label style={{ display: "grid", gap: 6, fontSize: "0.8rem", fontWeight: 600, color: "var(--text-muted)" }}>
-                Water Availability
-                <select
-                  className="form-select"
-                  value={water}
-                  onChange={(event) => setWater(event.target.value)}
-                >
-                  <option value="Borewell">Borewell</option>
-                  <option value="Canal">Canal</option>
-                  <option value="Rainfed">Rainfed</option>
-                  <option value="River">River</option>
-                  <option value="Pond">Pond / Farm Pond</option>
-                  <option value="Tank">Tank / Reservoir</option>
-                </select>
-              </label>
-              <label style={{ display: "grid", gap: 6, fontSize: "0.8rem", fontWeight: 600, color: "var(--text-muted)" }}>
-                State
-                <select className="form-select" value={state} onChange={(event) => selectState(event.target.value)}>
-                  <option value="">Select a state</option>
-                  {SUPPORTED_STATES.map((option) => <option key={option} value={option}>{option}</option>)}
-                </select>
-              </label>
-              <label style={{ display: "grid", gap: 6, fontSize: "0.8rem", fontWeight: 600, color: "var(--text-muted)" }}>
-                District
-                <select className="form-select" value={district} disabled={!state} onChange={(event) => setDistrict(event.target.value)}>
-                  <option value="">{state ? "Select a district" : "Select state first"}</option>
-                  {districtChoices.map((option) => <option key={option} value={option}>{option}</option>)}
-                </select>
-              </label>
-              <div style={{ gridColumn: "1 / -1", display: "flex", gap: 10 }}>
-                <button className="btn-next" type="button" disabled={profileSaving} onClick={saveFarmProfile}>{profileSaving ? "Saving…" : "Save Changes"}</button>
-                <button className="btn-back" type="button" onClick={() => { if (savedFarmProfile) applyFarmProfile(savedFarmProfile); setProfileEditing(false); setProfileNotice(""); }}>Cancel</button>
+      <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 840, width: "100%" }}>
+        {/* Farmer Personal & Account Profile */}
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">
+              <span className="card-title-icon"><UserIcon size={18} /></span>
+              {language === "te" ? "రైతు వ్యక్తిగత ఖాతా" : "Farmer Account & Identity"}
+            </span>
+            <span className="status-chip ready" style={{ fontSize: "0.72rem" }}>
+              {language === "te" ? "ధృవీకరించబడిన ఖాతా" : "Verified Account"}
+            </span>
+          </div>
+          <div className="card-body">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
+              <div style={{ padding: 14, background: "var(--page-bg)", borderRadius: "var(--r-md)" }}>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  {language === "te" ? "రైతు పేరు" : "Farmer Name"}
+                </div>
+                <div style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--green-950)", marginTop: 4 }}>
+                  {farmerDisplayName}
+                </div>
               </div>
-            </div>
-          )}
-          {profileLoading && <div className="empty-desc">Loading saved farm profile…</div>}
-          {profileNotice && <div className="empty-desc" style={{ marginBottom: 12 }}>{profileNotice}</div>}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
-            <div style={{ padding: 14, background: "var(--page-bg)", borderRadius: "var(--r-md)" }}>
-              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                {t.farmNameLbl}
+              <div style={{ padding: 14, background: "var(--page-bg)", borderRadius: "var(--r-md)" }}>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  {language === "te" ? "ఈమెయిల్ చిరునామా" : "Email Address"}
+                </div>
+                <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "var(--green-950)", marginTop: 4 }}>
+                  {farmerEmail}
+                </div>
               </div>
-              <div style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--green-950)", marginTop: 4 }}>
-                {farmName}
-              </div>
-            </div>
-            <div style={{ padding: 14, background: "var(--page-bg)", borderRadius: "var(--r-md)" }}>
-              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                {language === "te" ? "భౌగోళిక స్థానం" : "Location"}
-              </div>
-              <div style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--green-950)", marginTop: 4 }}>
-                {district}, {state}
-              </div>
-            </div>
-            <div style={{ padding: 14, background: "var(--page-bg)", borderRadius: "var(--r-md)" }}>
-              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                {t.acreageLbl}
-              </div>
-              <div style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--green-950)", marginTop: 4 }}>
-                {acreage} Acres
-              </div>
-            </div>
-            <div style={{ padding: 14, background: "var(--page-bg)", borderRadius: "var(--r-md)" }}>
-              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                {t.seasonLbl}
-              </div>
-              <div style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--green-950)", marginTop: 4 }}>
-                {season}
-              </div>
-            </div>
-            <div style={{ padding: 14, background: "var(--page-bg)", borderRadius: "var(--r-md)" }}>
-              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                {t.irrigationLbl}
-              </div>
-              <div style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--green-950)", marginTop: 4 }}>
-                {irrigation}
-              </div>
-            </div>
-            <div style={{ padding: 14, background: "var(--page-bg)", borderRadius: "var(--r-md)" }}>
-              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                {t.waterLbl}
-              </div>
-              <div style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--green-950)", marginTop: 4 }}>
-                {water}
+              <div style={{ padding: 14, background: "var(--page-bg)", borderRadius: "var(--r-md)" }}>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  {language === "te" ? "ఫోన్ నంబర్" : "Phone Number"}
+                </div>
+                <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "var(--green-950)", marginTop: 4 }}>
+                  {farmerPhone}
+                </div>
               </div>
             </div>
           </div>
-          <div style={{ marginTop: 20, display: "flex", gap: 12 }}>
-            <button
-              className="btn-next"
-              onClick={() => { setView("assessment"); setActiveStep(1); }}
-            >
-              <span>{t.runAssessmentBtn}</span>
-              <ArrowRightIcon size={14} />
-            </button>
-            {result && (
+        </div>
+
+        {/* Agricultural Holding Profile */}
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">
+              <span className="card-title-icon"><LeafIcon size={18} /></span>
+              {language === "te" ? "పొలం & కార్యాచరణ ప్రొఫైల్" : "Farm & Holding Operational Profile"}
+            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {profileLoading && (
+                <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                  {language === "te" ? "లోడ్ అవుతోంది..." : "Loading…"}
+                </span>
+              )}
               <button
-                className="btn-back"
-                onClick={openReportConfirmation}
+                className="card-action-btn"
+                onClick={() => { setProfileNotice(""); setProfileEditing((prev) => !prev); }}
+                type="button"
               >
-                {t.exportBtn}
+                {profileEditing
+                  ? (language === "te" ? "రద్దు చేయండి" : "Close Form")
+                  : (language === "te" ? "సవరించండి" : "Edit Profile")}
               </button>
+            </div>
+          </div>
+          <div className="card-body">
+            {profileEditing && (
+              <div style={{ padding: 16, background: "var(--page-bg)", borderRadius: "var(--r-md)", border: "1px solid var(--border)", marginBottom: 20 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+                  <label style={{ display: "grid", gap: 6, fontSize: "0.8rem", fontWeight: 600, color: "var(--text-muted)" }}>
+                    Farm / Holding Name
+                    <input
+                      className="form-input"
+                      type="text"
+                      value={farmName}
+                      onChange={(event) => setFarmName(event.target.value)}
+                      placeholder="e.g. Sri Venkateswara Farm"
+                    />
+                  </label>
+                  <label style={{ display: "grid", gap: 6, fontSize: "0.8rem", fontWeight: 600, color: "var(--text-muted)" }}>
+                    Land Area (Acres)
+                    <input
+                      className="form-input"
+                      type="number"
+                      step="0.1"
+                      min="0.1"
+                      value={acreage}
+                      onChange={(event) => setAcreage(event.target.value)}
+                      placeholder="e.g. 5.0"
+                    />
+                  </label>
+                  <label style={{ display: "grid", gap: 6, fontSize: "0.8rem", fontWeight: 600, color: "var(--text-muted)" }}>
+                    Agricultural Season
+                    <select
+                      className="form-select"
+                      value={season}
+                      onChange={(event) => setSeason(event.target.value)}
+                    >
+                      <option value="Kharif">Kharif (Monsoon: Jun – Oct)</option>
+                      <option value="Rabi">Rabi (Winter: Nov – Apr)</option>
+                      <option value="Zaid">Zaid (Summer: Mar – Jun)</option>
+                      <option value="Perennial">Perennial (Year-round)</option>
+                    </select>
+                  </label>
+                  <label style={{ display: "grid", gap: 6, fontSize: "0.8rem", fontWeight: 600, color: "var(--text-muted)" }}>
+                    Irrigation Method
+                    <select
+                      className="form-select"
+                      value={irrigation}
+                      onChange={(event) => setIrrigation(event.target.value)}
+                    >
+                      <option value="Drip">Drip Irrigation (High efficiency)</option>
+                      <option value="Sprinkler">Sprinkler Irrigation</option>
+                      <option value="Canal">Canal Irrigation</option>
+                      <option value="Borewell">Borewell / Tube Well</option>
+                      <option value="Flood">Flood / Furrow</option>
+                      <option value="Rainfed">Rainfed (Dryland)</option>
+                    </select>
+                  </label>
+                  <label style={{ display: "grid", gap: 6, fontSize: "0.8rem", fontWeight: 600, color: "var(--text-muted)" }}>
+                    Water Availability
+                    <select
+                      className="form-select"
+                      value={water}
+                      onChange={(event) => setWater(event.target.value)}
+                    >
+                      <option value="Borewell">Borewell</option>
+                      <option value="Canal">Canal</option>
+                      <option value="Rainfed">Rainfed</option>
+                      <option value="River">River</option>
+                      <option value="Pond">Pond / Farm Pond</option>
+                      <option value="Tank">Tank / Reservoir</option>
+                    </select>
+                  </label>
+                  <label style={{ display: "grid", gap: 6, fontSize: "0.8rem", fontWeight: 600, color: "var(--text-muted)" }}>
+                    State
+                    <select className="form-select" value={state} onChange={(event) => selectState(event.target.value)}>
+                      <option value="">Select a state</option>
+                      {SUPPORTED_STATES.map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </label>
+                  <label style={{ display: "grid", gap: 6, fontSize: "0.8rem", fontWeight: 600, color: "var(--text-muted)" }}>
+                    District
+                    <select className="form-select" value={district} disabled={!state} onChange={(event) => setDistrict(event.target.value)}>
+                      <option value="">{state ? "Select a district" : "Select state first"}</option>
+                      {districtChoices.map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
+                  </label>
+                  <div style={{ gridColumn: "1 / -1", display: "flex", gap: 10, marginTop: 8 }}>
+                    <button className="btn-next" type="button" disabled={profileSaving} onClick={saveFarmProfile}>
+                      {profileSaving ? (language === "te" ? "భద్రపరుస్తోంది..." : "Saving…") : (language === "te" ? "మార్పులను భద్రపరచండి" : "Save Changes")}
+                    </button>
+                    <button
+                      className="btn-back"
+                      type="button"
+                      onClick={() => {
+                        if (savedFarmProfile) applyFarmProfile(savedFarmProfile);
+                        setProfileEditing(false);
+                        setProfileNotice("");
+                      }}
+                    >
+                      {language === "te" ? "రద్దు" : "Cancel"}
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
+
+            {profileNotice && (
+              <div style={{ padding: "10px 14px", background: "var(--green-50)", border: "1px solid var(--green-200)", borderRadius: "var(--r-md)", fontSize: "0.82rem", color: "var(--green-900)", marginBottom: 16 }}>
+                {profileNotice}
+              </div>
+            )}
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
+              <div style={{ padding: 14, background: "var(--page-bg)", borderRadius: "var(--r-md)" }}>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  {t.farmNameLbl}
+                </div>
+                <div style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--green-950)", marginTop: 4 }}>
+                  {farmName || "—"}
+                </div>
+              </div>
+              <div style={{ padding: 14, background: "var(--page-bg)", borderRadius: "var(--r-md)" }}>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  {language === "te" ? "భౌగోళిక స్థానం" : "Location"}
+                </div>
+                <div style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--green-950)", marginTop: 4 }}>
+                  {district && state ? `${district}, ${state}` : (state || district || "—")}
+                </div>
+              </div>
+              <div style={{ padding: 14, background: "var(--page-bg)", borderRadius: "var(--r-md)" }}>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  {t.acreageLbl}
+                </div>
+                <div style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--green-950)", marginTop: 4 }}>
+                  {acreage ? `${acreage} Acres` : "—"}
+                </div>
+              </div>
+              <div style={{ padding: 14, background: "var(--page-bg)", borderRadius: "var(--r-md)" }}>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  {t.seasonLbl}
+                </div>
+                <div style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--green-950)", marginTop: 4 }}>
+                  {season || "Kharif"}
+                </div>
+              </div>
+              <div style={{ padding: 14, background: "var(--page-bg)", borderRadius: "var(--r-md)" }}>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  {t.irrigationLbl}
+                </div>
+                <div style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--green-950)", marginTop: 4 }}>
+                  {irrigation || "—"}
+                </div>
+              </div>
+              <div style={{ padding: 14, background: "var(--page-bg)", borderRadius: "var(--r-md)" }}>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  {t.waterLbl}
+                </div>
+                <div style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--green-950)", marginTop: 4 }}>
+                  {water || "—"}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 22, display: "flex", gap: 12 }}>
+              <button
+                className="btn-next"
+                onClick={() => { setView("assessment"); setActiveStep(1); }}
+                type="button"
+              >
+                <span>{t.runAssessmentBtn}</span>
+                <ArrowRightIcon size={14} />
+              </button>
+              {result && (
+                <button
+                  className="btn-back"
+                  onClick={openReportConfirmation}
+                  type="button"
+                >
+                  {t.exportBtn}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -4990,6 +5109,13 @@ export default function DashboardPage() {
                           <img
                             src={`${apiUrl}/api/plant-intelligence/${plantAnalysis.analysis_id}/assets/sam-overlay.png`}
                             alt="SAM Overlay"
+                            onError={(e) => {
+                              const target = e.currentTarget as HTMLImageElement;
+                              if (!target.dataset.fallback) {
+                                target.dataset.fallback = "1";
+                                target.src = `${apiUrl}/api/plant-intelligence/${plantAnalysis.analysis_id}/assets/original.jpg`;
+                              }
+                            }}
                             style={{ width: "100%", borderRadius: 8, border: "1px solid var(--border)" }}
                           />
                         </div>
@@ -4998,6 +5124,13 @@ export default function DashboardPage() {
                           <img
                             src={`${apiUrl}/api/plant-intelligence/${plantAnalysis.analysis_id}/assets/sam-segmented.png`}
                             alt="SAM Cutout"
+                            onError={(e) => {
+                              const target = e.currentTarget as HTMLImageElement;
+                              if (!target.dataset.fallback) {
+                                target.dataset.fallback = "1";
+                                target.src = `${apiUrl}/api/plant-intelligence/${plantAnalysis.analysis_id}/assets/original.jpg`;
+                              }
+                            }}
                             style={{ width: "100%", borderRadius: 8, border: "1px solid var(--border)" }}
                           />
                         </div>
@@ -5011,7 +5144,38 @@ export default function DashboardPage() {
                     </div>
                   ) : (
                     <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                      {executed.sam?.error ? <span style={{ color: "#991b1b" }}>⚠ {executed.sam.error}</span> : "Awaiting segmentation output."}
+                      {executed.sam?.error ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                          <span style={{ color: "#991b1b", lineHeight: 1.45 }}>⚠ {executed.sam.error}</span>
+                          <div>
+                            <button
+                              type="button"
+                              className="btn-next"
+                              onClick={() => handleRunSingleModel(plantAnalysis.analysis_id, "sam")}
+                              disabled={diseaseLoading}
+                              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", fontSize: "0.78rem" }}
+                            >
+                              <SparklesIcon size={14} />
+                              <span>{diseaseLoading ? "Running SAM…" : "Retry SAM ViT-B Segmentation"}</span>
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                          <span>Awaiting segmentation output.</span>
+                          {plantAnalysis?.analysis_id && (
+                            <button
+                              type="button"
+                              className="btn-next"
+                              onClick={() => handleRunSingleModel(plantAnalysis.analysis_id, "sam")}
+                              disabled={diseaseLoading}
+                              style={{ padding: "5px 12px", fontSize: "0.75rem" }}
+                            >
+                              Run SAM ViT-B
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -5042,6 +5206,13 @@ export default function DashboardPage() {
                         <img
                           src={`${apiUrl}/api/plant-intelligence/${plantAnalysis.analysis_id}/assets/lime-explanation.png`}
                           alt="LIME Explanation"
+                          onError={(e) => {
+                            const target = e.currentTarget as HTMLImageElement;
+                            if (!target.dataset.fallback) {
+                              target.dataset.fallback = "1";
+                              target.src = `${apiUrl}/api/plant-intelligence/${plantAnalysis.analysis_id}/assets/original.jpg`;
+                            }
+                          }}
                           style={{ width: "100%", borderRadius: 8, border: "1px solid var(--border)" }}
                         />
                       </div>
@@ -5056,7 +5227,38 @@ export default function DashboardPage() {
                     </div>
                   ) : (
                     <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                      {executed.lime?.error ? <span style={{ color: "#991b1b" }}>⚠ {executed.lime.error}</span> : "Awaiting LIME explanation."}
+                      {executed.lime?.error ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                          <span style={{ color: "#991b1b", lineHeight: 1.45 }}>⚠ {executed.lime.error}</span>
+                          <div>
+                            <button
+                              type="button"
+                              className="btn-next"
+                              onClick={() => handleRunSingleModel(plantAnalysis.analysis_id, "lime")}
+                              disabled={diseaseLoading}
+                              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", fontSize: "0.78rem" }}
+                            >
+                              <SparklesIcon size={14} />
+                              <span>{diseaseLoading ? "Running LIME…" : "Retry LIME Explanation"}</span>
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                          <span>Awaiting LIME explanation.</span>
+                          {plantAnalysis?.analysis_id && (
+                            <button
+                              type="button"
+                              className="btn-next"
+                              onClick={() => handleRunSingleModel(plantAnalysis.analysis_id, "lime")}
+                              disabled={diseaseLoading}
+                              style={{ padding: "5px 12px", fontSize: "0.75rem" }}
+                            >
+                              Run LIME
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

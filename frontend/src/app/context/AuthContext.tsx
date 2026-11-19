@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from "react";
 
 export interface User {
   user_id: string;
@@ -154,7 +154,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearTimeout(timeoutId);
       if (res.ok) {
         const data: User = await res.json();
-        setUser(data);
+        setUser((prev) => {
+          if (
+            prev &&
+            prev.user_id === data.user_id &&
+            prev.email === data.email &&
+            prev.full_name === data.full_name &&
+            prev.phone_number === data.phone_number
+          ) {
+            return prev;
+          }
+          return data;
+        });
         if (effectiveToken) {
           setToken(effectiveToken);
           setStoredSession(effectiveToken, data, true);
@@ -168,16 +179,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setToken(null);
         return null;
       }
-      return user || getStoredUser();
+      return getStoredUser();
     } catch {
       // Network error, offline, or Render waking up: retain stored session so user is not logged out
-      return user || getStoredUser();
+      return getStoredUser();
     } finally {
       setLoading(false);
     }
-  }, [apiUrl, token, user]);
+  }, [apiUrl, token]);
 
+  const mountRef = useRef(false);
   useEffect(() => {
+    if (mountRef.current) return;
+    mountRef.current = true;
     const storedToken = getStoredToken();
     const storedUser = getStoredUser();
     if (storedToken && !token) {
@@ -188,7 +202,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     }
     refreshUser(storedToken || undefined);
-  }, [refreshUser]);
+  }, [refreshUser, token, user]);
 
   const login = async (email: string, password: string, rememberMe = false): Promise<User> => {
     const res = await fetch(`${apiUrl}/api/v1/auth/login`, {

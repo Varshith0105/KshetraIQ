@@ -59,8 +59,26 @@ def _get_sam_generator(checkpoint_path: Path) -> Any:
         logger.info("Initializing SAM ViT-B model from %s", checkpoint_path)
         import torch
         from segment_anything import SamAutomaticMaskGenerator, sam_model_registry
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        sam = sam_model_registry["vit_b"](checkpoint=str(checkpoint_path))
+
+        # ── PyTorch >= 2.6 compatibility ─────────────────────────────────────
+        # torch.load now defaults to weights_only=True, which rejects the
+        # numpy scalars serialised inside Meta AI SAM checkpoints
+        # (WeightsUnpickler error: Unsupported operand 118).
+        # We temporarily override torch.load within this call scope so that
+        # weights_only=False is used for the trusted official checkpoint.
+        _orig_torch_load = torch.load
+
+        def _patched_torch_load(f, *args, **kwargs):
+            kwargs.setdefault("weights_only", False)
+            return _orig_torch_load(f, *args, **kwargs)
+
+        torch.load = _patched_torch_load
+        try:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            sam = sam_model_registry["vit_b"](checkpoint=str(checkpoint_path))
+        finally:
+            torch.load = _orig_torch_load  # always restore original
+
         sam.to(device=device)
         # points_per_side=16 provides dense foliar mask coverage while optimizing CPU inference latency
         _SAM_GENERATOR = SamAutomaticMaskGenerator(sam, points_per_side=16, points_per_batch=16)
@@ -150,22 +168,27 @@ class IntelligenceService:
         import importlib.util
         return importlib.util.find_spec(name) is not None
 
+    @staticmethod
+    def _is_valid_sam_file(path: Path | None) -> bool:
+        return bool(path and path.is_file() and path.stat().st_size > 10 * 1024 * 1024)
+
     def _ensure_sam_checkpoint(self) -> Path:
         """Find or download official SAM vit_b checkpoint."""
         candidate = self.settings.resolved_sam_checkpoint_path
-        if candidate and candidate.is_file():
-            return candidate
+        if self._is_valid_sam_file(candidate):
+            return candidate  # type: ignore[return-value]
 
         target_dir = Path(__file__).resolve().parents[3] / "capstone-final"
         target_path = target_dir / "sam_vit_b_01ec64.pth"
-        if target_path.is_file():
+        if self._is_valid_sam_file(target_path):
             return target_path
-
-        # Automatic download on first use
         url = "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth"
         logger.info("Downloading official SAM ViT-B checkpoint to %s...", target_path)
         target_dir.mkdir(parents=True, exist_ok=True)
-        urllib.request.urlretrieve(url, str(target_path))
+        tmp_path = target_path.with_suffix(".tmp")
+        urllib.request.urlretrieve(url, str(tmp_path))
+        if tmp_path.is_file() and tmp_path.stat().st_size > 10 * 1024 * 1024:
+            tmp_path.replace(target_path)
         logger.info("SAM ViT-B checkpoint download complete.")
         return target_path
 
@@ -178,7 +201,7 @@ class IntelligenceService:
 
         sam_path = Path(__file__).resolve().parents[3] / "capstone-final" / "sam_vit_b_01ec64.pth"
         cand_path = self.settings.resolved_sam_checkpoint_path
-        has_sam_checkpoint = (cand_path and cand_path.is_file()) or sam_path.is_file()
+        has_sam_checkpoint = self._is_valid_sam_file(cand_path) or self._is_valid_sam_file(sam_path)
         has_sam_module = self._module("segment_anything")
 
         has_lime = self._module("lime")

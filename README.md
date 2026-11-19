@@ -3,23 +3,24 @@
 
 # 🌾KshetraIQ
 
-### Autonomous Agricultural Intelligence & Precision Agronomy Platform
+### Autonomous Agricultural Intelligence, Multi-Model Plant Vision & Satellite Agronomy Platform
 
-**An end-to-end multi-modal agricultural decision-support system synthesizing 8 calibrated AI/ML models, physical ICAR agronomic rules, Open-Meteo live weather data, pan-India APMC mandi forecasting, and bilingual (English/తెలుగు) farm advisory.**
+**An end-to-end multi-modal agricultural decision-support system synthesizing 8 calibrated AI/ML models, deep foliar pathology vision (ResNet50 + Meta AI SAM ViT-B + LIME + Salesforce BLIP), Google Earth Engine Sentinel-2 satellite vegetation intelligence (NDVI/EVI), physical ICAR agronomic rules, Open-Meteo live weather data, pan-India APMC mandi forecasting, and bilingual (English/తెలుగు) farm advisory.**
 
 <p>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge" alt="License: MIT" /></a>
   <img src="https://img.shields.io/badge/Frontend-Next.js%2015-black?style=for-the-badge&logo=next.js&logoColor=white" alt="Next.js 15" />
   <img src="https://img.shields.io/badge/UI-React%2019%20%7C%20TailwindCSS-38BDF8?style=for-the-badge&logo=react&logoColor=white" alt="React 19" />
   <img src="https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" />
-  <img src="https://img.shields.io/badge/AI%2FML-PyTorch%20%7C%20TensorFlow%20%7C%20LightGBM-FF6F00?style=for-the-badge" alt="AI / ML" />
+  <img src="https://img.shields.io/badge/AI%2FML-PyTorch%20%7C%20SAM%20ViT--B%20%7C%20BLIP%20%7C%20LIME-FF6F00?style=for-the-badge" alt="AI / ML" />
+  <img src="https://img.shields.io/badge/Earth%20Engine-Sentinel--2%20NDVI%2F%E2%80%8BEVI-34A853?style=for-the-badge&logo=googleearth&logoColor=white" alt="Google Earth Engine" />
   <img src="https://img.shields.io/badge/Tests-159%20Passed%20(100%25)-brightgreen?style=for-the-badge&logo=pytest&logoColor=white" alt="Tests 159 Passed" />
   <img src="https://img.shields.io/badge/Localization-English%20%26%20తెలుగు-blue?style=for-the-badge" alt="English & Telugu" />
   <img src="https://img.shields.io/badge/Security-ICAR%20Guarded-red?style=for-the-badge" alt="Security Guarded" />
   <img src="https://img.shields.io/badge/Status-Production%20Ready-success?style=for-the-badge" alt="Production Ready" />
 </p>
 
-[Overview](#-overview) · [Core Capabilities](#-core-capabilities) · [Machine Learning Matrix](#-machine-learning--agronomic-engineering-matrix) · [System Architecture](#-system-architecture) · [API Endpoints](#-api-endpoints--service-contracts) · [Quick Start (Running_Project)](#-quick-start--installation) · [Configuration](#-configuration--environment-variables) · [Testing & Verification](#-testing-verification--model-audit) · [Security & Governance](#-security-trust--governance-security-readme) · [Documentations](#-documentations-index) · [License](#-license)
+[Overview](#-overview) · [Core Capabilities](#-core-capabilities) · [Plant Intelligence (ResNet50 + SAM + LIME + BLIP)](#-plant-intelligence-multi-model-research-pipeline) · [Satellite Intelligence (Sentinel-2 NDVI & EVI)](#-satellite-intelligence--remote-sensing) · [Machine Learning Matrix](#-machine-learning--agronomic-engineering-matrix) · [System Architecture](#-system-architecture) · [API Endpoints](#-api-endpoints--service-contracts) · [Quick Start](#-quick-start--installation) · [Configuration](#-configuration--environment-variables) · [Testing & Verification](#-testing-verification--model-audit) · [Security & Governance](#-security-trust--governance-security-readme) · [Documentations](#-documentations-index) · [License](#-license)
 
 </div>
 
@@ -29,9 +30,15 @@
 
 **KshetraIQ** is an enterprise-grade agricultural intelligence platform built for Indian agro-ecological zones, featuring dedicated bilingual support for Andhra Pradesh and Telangana farming communities. It bridges raw machine learning research and actual field decision-making by enforcing strict physical agronomic constraints, multi-candidate uncertainty quantification, and a zero-hallucination policy.
 
-Instead of ungrounded generative predictions or uncalibrated point estimates, KshetraIQ operates a **dual-engine architecture**:
+> 🎬 **Website Working Video Demonstration:**  
+> Watch the complete platform in action: **[KshetraIQ working](https://drive.google.com/file/d/1X8CwqaNEgAzT0VLmnwTSUn7ikR_fEa2C/view?usp=sharing)** — featuring end-to-end crop advisory, multi-model foliar pathology (SAM, LIME, BLIP), Google Earth Engine Sentinel-2 farm mapping, and real-time Rythu AI chatbot interactions.
+
+Instead of ungrounded generative predictions or uncalibrated point estimates, KshetraIQ operates a **tri-engine architecture**:
 1. **Calibrated Machine Learning Cluster:** 8 specialized predictive and diagnostic models covering crop recommendation, yield forecasting, climate shock simulation, eco-efficiency scoring, meteorological risk, price dynamics, reinforcement learning irrigation scheduling, and foliar pathology computer vision.
-2. **Deterministic Physical Safety Net:** Rigorous agronomic guardrails derived directly from ICAR (Indian Council of Agricultural Research) and ANGRAU (Acharya N.G. Ranga Agricultural University) agronomy manuals that override statistical outputs when sensor data is missing or out-of-bounds.
+2. **Multi-Model Plant & Satellite Remote Sensing Intelligence:**
+   - **Plant Intelligence:** A 4-model foliar diagnostic pipeline combining ResNet-50 classification, Meta AI SAM ViT-B zero-shot foliar instance segmentation, LIME superpixel explainability, and Salesforce BLIP multimodal captioning.
+   - **Satellite Intelligence:** Real-time Copernicus Sentinel-2 surface reflectance via Google Earth Engine computing farm-level NDVI and EVI vegetation health maps.
+3. **Deterministic Physical Safety Net:** Rigorous agronomic guardrails derived directly from ICAR (Indian Council of Agricultural Research) and ANGRAU (Acharya N.G. Ranga Agricultural University) agronomy manuals that override statistical outputs when sensor data is missing or out-of-bounds.
 
 > [!IMPORTANT]
 > **Integrity Guarantee (Zero Fabrication):** KshetraIQ prohibits prediction fabrication. Incomplete soil nutrient parameters, unsupported crop-mandi combinations, or degraded sensors return an explicit `needs_input` state with clear guidance rather than synthesizing hallucinated baselines.
@@ -41,11 +48,12 @@ Instead of ungrounded generative predictions or uncalibrated point estimates, Ks
 ### Why KshetraIQ?
 
 - **Zero-Fabrication Trust Model:** If laboratory soil measurements or APMC market arrivals are unavailable, models return a formal `needs_input` state with actionable guidance instead of arbitrary synthetic numbers.
+- **Deep Multi-Model Plant Foliar Intelligence:** Uploading a single leaf image triggers an integrated pipeline across **ResNet50** (taxonomic disease classification), **Meta AI SAM ViT-B** (zero-shot foliar canopy mask & cutout), **LIME** (150-superpixel lesion interpretability), and **Salesforce BLIP** (natural language leaf symptom descriptions).
+- **Google Earth Engine Satellite Remote Sensing:** Live Copernicus Sentinel-2 multispectral surface reflectance with cloud masking, providing automated **NDVI** (Normalized Difference Vegetation Index) and **EVI** (Enhanced Vegetation Index) canopy health tracking across Indian coordinates.
 - **Reinforcement Learning Water Conservation:** A continuous-state PPO (Proximal Policy Optimization) actor-critic policy optimizes irrigation depth per acre, reducing water waste while guarding against root moisture stress.
 - **Pan-India APMC Market Intelligence:** Calibrated on 26.4 million historical records across 5,800+ mandis and 390+ commodities, combining LightGBM seasonal trend analysis with an empirical short-term persistence baseline.
-- **Deep Vision Leaf Diagnostics:** 23-class ResNet-50 computer vision pipeline identifying foliar blights, rusts, and nutrient deficiencies with instant organic and chemical remediation steps.
 - **Native Telugu & English Localization:** Instant dynamic toggling across all dashboard controls, diagnostic cards, AI explanations, and downloadable PDF reports.
-- **Automated Farm Dossier Generation:** Generates official two-step confirmed bilingual PDF agricultural dossiers using ReportLab.
+- **Automated Research Dossier & PDF Synthesis:** Generates official multi-model research PDF reports containing composite 2×2 visual analysis grids, superpixel overlays, and agronomic prescriptions using ReportLab.
 
 ---
 
@@ -53,6 +61,8 @@ Instead of ungrounded generative predictions or uncalibrated point estimates, Ks
 
 | Module | Core Capabilities & Scope | Algorithmic / Agronomic Engine |
 |:---|:---|:---|
+| 🌿 **Multi-Model Plant Intelligence** | • 23-Class ResNet-50 Disease Classification<br/>• **Meta AI SAM ViT-B** Zero-Shot Foliar Segmentation<br/>• **LIME** 150-Superpixel Lesion Explainability<br/>• **Salesforce BLIP** Multimodal Natural Language Captioning<br/>• Automated 2×2 Composite Grid & PDF Synthesis | PyTorch + TensorFlow Lite + Hugging Face Transformers + ReportLab |
+| 🛰️ **Satellite Vegetation Intelligence** | • Live Copernicus Sentinel-2 Remote Sensing<br/>• High-Precision **NDVI & EVI** Index Calculation<br/>• Automated Cloud/Shadow Filtering & Quality Masking<br/>• India Farm Coordinate Geocoding & Historical Change | Google Earth Engine (`COPERNICUS/S2_SR_HARMONIZED`) |
 | 🧪 **Soil Health & Chemistry** | • 5-Band Diagnostic Scoring<br/>• NPK Stoichiometric Ratios<br/>• pH, Gypsum & Lime Soil Advisory | ICAR Stoichiometric Models & ANGRAU Regional Chemistry |
 | 🌾 **Precision Crop Selection** | • 22-Crop Multi-Candidate Ranking<br/>• Full Probability Distributions<br/>• Soil-Climatic Agronomic Compatibility | Calibrated Random Forest Classifier (**99.3% Accuracy**) |
 | 💧 **Autonomous Smart Irrigation** | • Volumetric Root Moisture Optimization<br/>• Dynamic Water Budgeting per Acre<br/>• Stress & Wilting Point Protection | Deep Reinforcement Learning (PPO Policy) + ICAR Hydrology |
@@ -61,6 +71,91 @@ Instead of ungrounded generative predictions or uncalibrated point estimates, Ks
 | 🌦️ **Micro-Climate Intelligence** | • Real-Time Geocoded Open-Meteo Sync<br/>• 4-Class Meteorological Hazard Prediction<br/>• 7-Day Rainfall & Moisture Shock Modeling | XGBoost Multi-Class Softprob Classifier (**87.4% Accuracy**) |
 | 🤖 **Rythu AI Multi-Agent Chatbot** | • State-Aware Screen Grounding & Context<br/>• Native Telugu (తెలుగు) & English Dialects<br/>• Physical Fact Verification Guardrails | LangGraph Multi-Agent Orchestration & Context Engine |
 | 📄 **Official Bilingual Dossier** | • Two-Step Confirmed Report Synthesis<br/>• Complete Farm Soil, Crop & Mandi Audit<br/>• Downloadable Print-Ready Advisory | ReportLab PDF Engine with Localized Typography |
+
+---
+
+## 🌿 Plant Intelligence: Multi-Model Research Pipeline
+
+The **Plant Intelligence** workspace elevates agricultural pathology beyond simple label prediction into a **4-model multi-perspective foliar inspection system**. A single leaf photograph dispatched to the backend executes across four complementary machine learning architectures:
+
+```
+                  ┌──────────────────────────────────────────────┐
+                  │          Original Foliar Photo Upload         │
+                  └──────────────────────┬───────────────────────┘
+                                         │
+         ┌───────────────────┬───────────┴───────────┬───────────────────┐
+         │                   │                       │                   │
+         ▼                   ▼                       ▼                   ▼
+┌──────────────────┐┌──────────────────┐┌──────────────────┐┌──────────────────┐
+│ 1. ResNet-50     ││ 2. Meta AI SAM   ││ 3. LIME          ││ 4. BLIP Vision   │
+│ Classification   ││ ViT-B Segment    ││ Explainability   ││ Captioning       │
+│ (23 Categories)  ││ (Zero-Shot Mask) ││ (150 Superpixels)││ (Natural Speech) │
+└────────┬─────────┘└────────┬─────────┘└────────┬─────────┘└────────┬─────────┘
+         │                   │                       │                   │
+         └───────────────────┴───────────┬───────────┴───────────────────┘
+                                         ▼
+                  ┌──────────────────────────────────────────────┐
+                  │    Unified 2×2 Multi-Model Research Composite│
+                  │   & Print-Ready Bilingual Research PDF Dossier│
+                  └──────────────────────────────────────────────┘
+```
+
+### 1. ResNet-50 Foliar Disease Classifier
+- **Architecture:** 50-layer Residual Convolutional Neural Network trained on 160×160 RGB foliar samples.
+- **Diagnostics:** 23 agricultural pathogen classes across 5 staple species (Apple, Corn, Grape, Potato, Tomato).
+- **Outputs:** Primary diagnosis, class confidence percentage, scientific pathogen nomenclature, and dual organic/chemical ICAR-aligned remediation protocols.
+
+### 2. Meta AI SAM (Segment Anything Model) ViT-B
+- **Architecture:** Official Vision Transformer Base (`sam_vit_b_01ec64.pth`, 357.7 MB) with dense grid prompt inference (`points_per_side=16`, `points_per_batch=16`).
+- **Capability:** Zero-shot foliar instance segmentation isolating vegetative leaf canopy tissue from soil, shadows, and ambient greenhouse background noise.
+- **Outputs:**
+  - `sam-mask.png`: Binary foliar structural mask.
+  - `sam-overlay.png`: Scientific Jet-colormap segmentation overlay highlighting foliar density.
+  - `sam-segmented.png`: Isolated leaf cutout on white background for clean pathological inspection.
+  - Quantitative metrics: Mask count, leaf canopy coverage %, and total segmented pixel area.
+
+### 3. LIME (Local Interpretable Model-agnostic Explanations)
+- **Engine:** `LimeImageExplainer` perturbing 150 local superpixel clusters via Quickshift segmentation.
+- **Capability:** Evaluates which specific leaf regions, necrotic lesions, and chlorotic patches caused the ResNet-50 classifier to predict the diagnosed disease.
+- **Outputs:**
+  - `lime-explanation.png`: Superpixel boundary visualization with top influential features overlaid directly on the leaf.
+  - Plain-language attribution describing leaf spots, vein discoloration, and margin burns.
+
+### 4. Salesforce BLIP Multimodal Vision-Language Captioning
+- **Model:** `Salesforce/blip-image-captioning-base` (conditioned vision-language generation).
+- **Capability:** Generates human-like, non-taxonomic natural language descriptions of observable visual leaf symptoms (e.g., *"a green leaf with severe yellow spots and brown dry edges"*).
+- **Outputs:**
+  - `blip-analysis.png`: High-resolution visual asset with embedded caption banner.
+  - Detailed foliar description and concise caption integrated into the bilingual AI advisor.
+
+---
+
+## 🛰️ Satellite Intelligence: Google Earth Engine Remote Sensing
+
+The **Satellite Intelligence** workspace connects directly to **Google Earth Engine (GEE)** to provide multi-temporal, multi-spectral vegetation health monitoring using **Copernicus Sentinel-2 Harmonized Level-2A Surface Reflectance** (`COPERNICUS/S2_SR_HARMONIZED`).
+
+### Key Capabilities & Scientific Indices:
+
+1. **Precision Geospatial Farm Anchor:**
+   - Interactive India location picker covering all states and agricultural districts.
+   - Farmers select exact geographic coordinates $(\text{Latitude}, \text{Longitude})$ and custom observation date ranges.
+
+2. **Automated Cloud Masking & Scene Quality Filtering:**
+   - Sentinel-2 `QA60` bitmask filtering removes opaque clouds and cirrus artifacts.
+   - Cloud probability thresholds ($\le 20\%$) ensure only pristine agricultural observations enter the computation.
+
+3. **Vegetation Index Calculation:**
+   - **NDVI (Normalized Difference Vegetation Index):**
+     $$\text{NDVI} = \frac{\text{NIR} - \text{Red}}{\text{NIR} + \text{Red}} = \frac{B8 - B4}{B8 + B4}$$
+     *Measures chlorophyll absorption, canopy biomass density, and photosynthetic vigor ($ -1.0 \le \text{NDVI} \le +1.0 $).*
+   - **EVI (Enhanced Vegetation Index):**
+     $$\text{EVI} = 2.5 \times \frac{B8 - B4}{B8 + 6 \times B4 - 7.5 \times B2 + 1}$$
+     *Corrects for atmospheric aerosols and soil background reflections, offering superior sensitivity in high-biomass crops (paddy, sugarcane).*
+
+4. **Multi-Spectral Visual Assets & Reports:**
+   - `sentinel2-rgb.png`: High-resolution True Color satellite image (Bands 4, 3, 2).
+   - `sentinel2-ndvi.png`: False-color NDVI heatmap visualizer mapping canopy health across the farm boundary.
+   - Downloadable Sentinel-2 Satellite Farm Dossier summarizing mean NDVI, seasonal vegetation change rate, and irrigation stress indicators.
 
 ---
 
@@ -88,11 +183,15 @@ flowchart TD
     subgraph ClientLayer ["Client Layer (Next.js 15 + React 19)"]
         UI["Bilingual Farm Dashboard (EN / తెలుగు)"]
         SC["Screen Context Provider (Active Tab & Inputs)"]
+        PlantUI["Plant Disease & Multi-Model Foliar Workspace"]
+        SatUI["Satellite Vegetation (Sentinel-2 NDVI/EVI) Workspace"]
         AuthClient["Session Auth & HttpOnly Cookie Manager"]
     end
 
     subgraph Gateway ["API Gateway (FastAPI 0.159)"]
         Router["REST API Router (/api/v1)"]
+        PlantRouter["Plant Intelligence Router (/api/plant-intelligence)"]
+        SatRouter["Satellite Intelligence Router (/api/satellite-intelligence)"]
         CORS["Strict CORS & Security Middleware"]
         AuthMiddleware["JWT & Session Ownership Guard"]
     end
@@ -103,19 +202,34 @@ flowchart TD
         RythuChat["Rythu Multilingual Farm Advisor"]
     end
 
-    subgraph ModelCluster ["Machine Learning Inference Engines (Agriverse)"]
-        CropM["Crop Recommendation (RF)"]
-        YieldM["Crop Yield & Climate Engine (RF)"]
+    subgraph ModelCluster ["Machine Learning Inference Engines (Agriverse Core)"]
+        CropM["Crop Recommendation (RF 99.3%)"]
+        YieldM["Crop Yield & Climate Engine (RF R²=0.98)"]
         IrrigM["RL Irrigation Policy (PPO Box-6)"]
         MktM["Mandi Price Forecaster (LightGBM 500)"]
-        VisionM["Leaf Pathology Vision (ResNet-50)"]
         EcoM["Sustainability & Carbon Index"]
+        RiskM["Meteorological Risk Engine (XGBoost)"]
+    end
+
+    subgraph PlantIntelligenceCluster ["Plant Foliar Vision & Interpretability Cluster"]
+        ResNetM["1. ResNet-50 Disease Classifier (23 Classes)"]
+        SAMM["2. Meta AI SAM ViT-B (Zero-Shot Foliar Segmentation)"]
+        LIMEM["3. LIME Explainer (150 Local Superpixels)"]
+        BLIPM["4. Salesforce BLIP (Multimodal Foliar Captioning)"]
+        CompositeM["2×2 Multi-Model Research Composite Generator"]
+    end
+
+    subgraph SatelliteIntelligenceCluster ["Satellite Remote Sensing (Earth Engine)"]
+        GEE["Google Earth Engine API"]
+        S2Harmonized["Copernicus Sentinel-2 Harmonized (L2A)"]
+        CloudMask["QA60 Cloud & Cirrus Filter Mask"]
+        NDVI_EVI["Multi-Spectral NDVI & EVI Compute Engine"]
     end
 
     subgraph PhysicalSafety ["Physical & Regulatory Safety Guardrails"]
         ICAR["ICAR Water Budgeting & Rotation Rules"]
         ANGRAU["ANGRAU Soil Chemistry & Fertilizer Bands"]
-        ReportLab["Bilingual PDF Dossier Builder"]
+        ReportLab["Bilingual PDF Dossier & Research Report Builder"]
     end
 
     subgraph DataIntegrations ["External Feeds & Persistence"]
@@ -125,14 +239,25 @@ flowchart TD
     end
 
     UI -->|HTTP / JSON| Router
+    PlantUI -->|Multipart Upload / JSON| PlantRouter
+    SatUI -->|Coordinates / Dates| SatRouter
     SC -->|Screen Payload| Orchestrator
     AuthClient -->|Bearer / Cookie| AuthMiddleware
     Router --> AuthMiddleware
+    PlantRouter --> PlantIntelligenceCluster
+    SatRouter --> SatelliteIntelligenceCluster
+    SatelliteIntelligenceCluster --> GEE
+    GEE --> S2Harmonized
+    S2Harmonized --> CloudMask --> NDVI_EVI
     AuthMiddleware --> Orchestrator
     Orchestrator --> ContextEngine
     ContextEngine --> RythuChat
     RythuChat --> ModelCluster
+    RythuChat --> PlantIntelligenceCluster
+    RythuChat --> SatelliteIntelligenceCluster
     ModelCluster --> PhysicalSafety
+    PlantIntelligenceCluster --> CompositeM --> ReportLab
+    SatelliteIntelligenceCluster --> ReportLab
     PhysicalSafety --> ReportLab
     Router --> ModelCluster
     Router --> OpenMeteo
@@ -146,6 +271,7 @@ flowchart TD
 
 All REST endpoints are documented with OpenAPI schemas at `http://127.0.0.1:8000/docs`:
 
+### Core Agronomic & Diagnostic Endpoints (`/api/v1`)
 | Method | Endpoint | Description | Authentication |
 |:---|:---|:---|:---:|
 | `GET` | `/health` | Core system health, storage mode, and active LLM provider check | Public |
@@ -167,6 +293,27 @@ All REST endpoints are documented with OpenAPI schemas at `http://127.0.0.1:8000
 | `POST` | `/api/v1/assessments` | Create and persist comprehensive farm assessment | Required |
 | `GET` | `/api/v1/assessments/{id}/report/preview` | Step 1: Preview structured advisory data | Required |
 | `POST` | `/api/v1/assessments/{id}/report/confirm` | Step 2: Render and download official bilingual PDF dossier | Required |
+
+### Multi-Model Plant Foliar Intelligence Endpoints (`/api/plant-intelligence`)
+| Method | Endpoint | Description | Authentication |
+|:---|:---|:---|:---:|
+| `GET` | `/api/plant-intelligence/models/status` | Readiness status of ResNet50, SAM ViT-B, LIME, and BLIP | Public |
+| `POST` | `/api/plant-intelligence/analyze` | Single-upload entrypoint executing ResNet50, SAM, LIME & BLIP | Optional / Session |
+| `GET` | `/api/plant-intelligence/history` | Historical foliar pathology sessions for authenticated user | Optional / Session |
+| `GET` | `/api/plant-intelligence/{analysis_id}` | Fetch real-time progress, metrics, and outputs of foliar analysis | Optional / Session |
+| `POST` | `/api/plant-intelligence/{analysis_id}/{model}` | Targeted individual model execution or retry (`sam`, `lime`, `blip`) | Optional / Session |
+| `GET` | `/api/plant-intelligence/{analysis_id}/assets/{asset_name}` | Retrieve generated PNG assets (`sam-overlay.png`, `lime-explanation.png`, etc.) | Optional / Session |
+| `POST` | `/api/plant-intelligence/{analysis_id}/report` | Generate and download unified research foliar PDF report | Optional / Session |
+
+### Satellite Earth Engine Remote Sensing Endpoints (`/api/satellite-intelligence`)
+| Method | Endpoint | Description | Authentication |
+|:---|:---|:---|:---:|
+| `GET` | `/api/satellite-intelligence/models/status` | Google Earth Engine authentication & Sentinel-2 connection state | Public |
+| `POST` | `/api/satellite-intelligence/analyze` | Dispatch farm coordinates & date range for Sentinel-2 NDVI/EVI | Optional / Session |
+| `GET` | `/api/satellite-intelligence/history` | Historical satellite remote sensing queries for authenticated user | Optional / Session |
+| `GET` | `/api/satellite-intelligence/{analysis_id}` | Fetch Sentinel-2 surface reflectance metrics and vegetation change | Optional / Session |
+| `GET` | `/api/satellite-intelligence/{analysis_id}/assets/{asset_name}` | Retrieve Sentinel-2 True Color RGB and NDVI heatmap visual assets | Optional / Session |
+| `POST` | `/api/satellite-intelligence/{analysis_id}/report` | Generate and download official Sentinel-2 Satellite Farm Dossier | Optional / Session |
 
 ---
 

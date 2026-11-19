@@ -59,6 +59,9 @@ foreach ($pair in @(@{ Port = 8000; Name = "backend" }, @{ Port = 3000; Name = "
         Write-Host "[WARN] Recycling unhealthy KshetraIQ $($pair.Name) listener (PID $($listener.OwningProcess))." -ForegroundColor Yellow
         Stop-Process -Id $listener.OwningProcess -Force
         Start-Sleep -Seconds 1
+        if ($pair.Name -eq "frontend" -and $Mode -eq "dev") {
+            Remove-Item -Recurse -Force (Join-Path $frontendDir ".next-dev") -ErrorAction SilentlyContinue
+        }
     }
 }
 
@@ -72,6 +75,11 @@ if (-not (Test-Url "http://127.0.0.1:8000/health")) {
 
 if (-not (Test-Url "http://127.0.0.1:3000/")) {
     Remove-Item -LiteralPath $frontendOut, $frontendErr -Force -ErrorAction SilentlyContinue
+    if ($Mode -eq "prod" -and -not (Test-Path (Join-Path $frontendDir ".next-kshetraiq"))) {
+        Write-Host "[INFO] Building Next.js production bundle..." -ForegroundColor Cyan
+        $buildProc = Start-Process -FilePath "npm.cmd" -WorkingDirectory $frontendDir -ArgumentList @("run", "build") -Wait -PassThru -NoNewWindow
+        if ($buildProc.ExitCode -ne 0) { throw "Frontend build failed with exit code $($buildProc.ExitCode)." }
+    }
     $frontendArgs = if ($Mode -eq "prod") { @("start", "--", "-p", "3000", "-H", "127.0.0.1") } else { @("run", "dev", "--", "-p", "3000", "-H", "127.0.0.1") }
     Write-Host "[INFO] Starting Next.js frontend in $Mode mode..." -ForegroundColor Cyan
     Start-Process -FilePath "npm.cmd" -WorkingDirectory $frontendDir -WindowStyle Hidden -ArgumentList $frontendArgs `
